@@ -26,11 +26,11 @@ interface Window {
   ipcRenderer: import('electron').IpcRenderer
 
   videoCompressor: {
-    hello: () => Promise<string>
-
     selectVideo: () => Promise<string | null>
 
     getVideoInfo: (filePath: string) => Promise<VideoInfo>
+
+    compressVideo: (filePath: string, targetSizeMB: number, duration: number) => Promise<string>
   }
 
 }

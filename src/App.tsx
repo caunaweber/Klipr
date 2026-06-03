@@ -1,79 +1,124 @@
 import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/electron-vite.animate.svg'
 import './App.css'
 import { VideoInfo } from './types/video'
 
 function App() {
-  const [message, setMessage] = useState('')
-  const [videoPath, setVideoPath] = useState('')
   const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null)
+  const [compressedPath, setCompressedPath] = useState('')
+  const [targetSizeMB, setTargetSizeMB] = useState<string>('10')
 
-  const testMessage = async () => {
-    const result = await window.videoCompressor.hello()
-    setMessage(result)
-  }
 
   const selectVideo = async () => {
-    const path = await window.videoCompressor.selectVideo()
+    const path =
+      await window.videoCompressor.selectVideo()
 
     if (!path) {
-      setVideoPath('No video selected')
       setVideoInfo(null)
       return
     }
 
-    setVideoPath(path)
-
-    const info = await window.videoCompressor.getVideoInfo(path)
+    const info =
+      await window.videoCompressor.getVideoInfo(path)
 
     setVideoInfo(info)
   }
 
+  const formatDuration = (
+    seconds: number
+  ) => {
+    const h =
+      Math.floor(seconds / 3600)
+
+    const m =
+      Math.floor(
+        (seconds % 3600) / 60
+      )
+
+    const s =
+      Math.floor(seconds % 60)
+
+    return `${h}h ${m}m ${s}s`
+  }
+
+  const compressVideo = async () => {
+    if (!videoInfo) return
+
+    try {
+      const outputPath =
+        await window.videoCompressor.compressVideo(
+          videoInfo.filePath,
+          Number(targetSizeMB),
+          videoInfo.duration
+        )
+
+      setCompressedPath(outputPath)
+
+    } catch (error) {
+      console.error(error)
+    }
+  }
+
   return (
-    <>
-      <div>
-        <a href="https://electron-vite.github.io" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
+    <div>
+      <h1>Video Compressor</h1>
 
-        <button onClick={testMessage}>
-          Testar IPC
-        </button>
+      <button onClick={selectVideo}>
+        Selecionar vídeo
+      </button>
 
-        <button onClick={selectVideo}>
-          Select mp4 video
-        </button>
-        {videoInfo && (
-          <div>
-            <h3>Informações do vídeo</h3>
+      {videoInfo && (
+        <div>
+          <h2>
+            {videoInfo.fileName}
+          </h2>
 
-            <p>Arquivo: {videoInfo.fileName}</p>
+          <p>
+            Tamanho:
+            {videoInfo.sizeMB} MB
+          </p>
 
-            <p>Tamanho: {videoInfo.sizeMB} MB</p>
+          <p>
+            Duração:
+            {formatDuration(
+              videoInfo.duration
+            )}
+          </p>
 
-            <p>
-              Resolução: {videoInfo.width} x {videoInfo.height}
-            </p>
+          <p>
+            Resolução:
+            {videoInfo.width} x
+            {videoInfo.height}
+          </p>
 
-            <p>
-              Duração: {Math.floor(videoInfo.duration)} segundos
-            </p>
+          <p>
+            Codec:
+            {videoInfo.codec}
+          </p>
 
-            <p>
-              Codec: {videoInfo.codec}
-            </p>
-          </div>
-        )}
-        <p>{message}</p>
-      </div>
-    </>
+        </div>
+      )}
+
+      <input
+        type="number"
+        min={1}
+        value={targetSizeMB}
+        onChange={(e) =>
+          setTargetSizeMB(e.target.value)
+        }
+      />
+
+      <button onClick={compressVideo}>
+        Comprimir
+      </button>
+
+      {compressedPath && (
+        <p>
+          Vídeo salvo em:
+          {compressedPath}
+        </p>
+      )}
+
+    </div>
   )
 }
 
