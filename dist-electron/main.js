@@ -2,13 +2,298 @@ import { dialog, app, BrowserWindow, ipcMain } from "electron";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { createRequire } from "node:module";
-import { execFile, spawn } from "child_process";
+import { spawn, execFile } from "child_process";
 import { promisify } from "util";
 import fs from "fs";
+function calculateVideoBitrate(targetSizeMB, duration, audioBitrateKbps = 128) {
+  const audioBits = audioBitrateKbps * 1e3 * duration;
+  const targetBits = targetSizeMB * 1024 * 1024 * 8;
+  const videoBits = targetBits - audioBits;
+  const videoBitrate = Math.floor(videoBits / duration);
+  const bitrateKbps = Math.floor(videoBitrate / 1e3);
+  if (bitrateKbps < 100) {
+    throw new Error(
+      "Target size is too small for this video."
+    );
+  }
+  return {
+    bitrateKbps,
+    audioBitrateKbps
+  };
+}
+const require$3 = createRequire(import.meta.url);
+const ffmpeg$1 = require$3("ffmpeg-static");
+async function onePassCompression(options) {
+  const {
+    filePath,
+    targetSizeMB,
+    duration,
+    onProgress
+  } = options;
+  const {
+    bitrateKbps,
+    audioBitrateKbps
+  } = calculateVideoBitrate(
+    targetSizeMB,
+    duration
+  );
+  const parsedFile = path.parse(filePath);
+  const outputPath = path.join(
+    parsedFile.dir,
+    `${parsedFile.name}-compressed.mp4`
+  );
+  console.log({
+    ffmpeg: ffmpeg$1,
+    filePath,
+    targetSizeMB,
+    bitrateKbps,
+    outputPath
+  });
+  return new Promise((resolve, reject) => {
+    const ffmpegProcess = spawn(
+      ffmpeg$1,
+      [
+        "-y",
+        "-i",
+        filePath,
+        "-b:v",
+        `${bitrateKbps}k`,
+        "-c:v",
+        "libx264",
+        "-c:a",
+        "aac",
+        "-b:a",
+        `${audioBitrateKbps}k`,
+        "-progress",
+        "pipe:1",
+        outputPath
+      ]
+    );
+    console.log("FFmpeg process created");
+    let finished = false;
+    ffmpegProcess.on(
+      "error",
+      (error) => {
+        if (finished) return;
+        finished = true;
+        console.error(
+          "FFmpeg process error:",
+          error
+        );
+        reject(error);
+      }
+    );
+    let stderrOutput = "";
+    ffmpegProcess.stderr.on(
+      "data",
+      (data) => {
+        stderrOutput += data.toString();
+      }
+    );
+    ffmpegProcess.stdout.on("data", (data) => {
+      const output = data.toString();
+      const match = output.match(
+        /out_time_ms=(\d+)/
+      );
+      if (match) {
+        const currentSeconds = Number(match[1]) / 1e6;
+        const progress = Math.min(
+          100,
+          Math.floor(
+            currentSeconds / duration * 100
+          )
+        );
+        console.log(
+          `Progress: ${progress}%`
+        );
+        onProgress(progress);
+      }
+    });
+    ffmpegProcess.on("close", (code) => {
+      if (finished) return;
+      finished = true;
+      console.log(
+        `FFmpeg closed with code ${code}`
+      );
+      if (code === 0) {
+        console.log(
+          "Compression finished"
+        );
+        onProgress(100);
+        resolve(outputPath);
+      } else {
+        reject(
+          new Error(
+            `FFmpeg exited with code ${code}
+${stderrOutput}`
+          )
+        );
+      }
+    });
+  });
+}
+const execFileAsync$1 = promisify(execFile);
+const require$2 = createRequire(import.meta.url);
+const ffmpeg = require$2("ffmpeg-static");
+async function twoPassCompression(options) {
+  const {
+    filePath,
+    targetSizeMB,
+    duration,
+    onProgress
+  } = options;
+  const {
+    bitrateKbps,
+    audioBitrateKbps
+  } = calculateVideoBitrate(
+    targetSizeMB,
+    duration
+  );
+  const parsedFile = path.parse(filePath);
+  const outputPath = path.join(
+    parsedFile.dir,
+    `${parsedFile.name}-compressed.mp4`
+  );
+  const passLogFile = path.join(
+    parsedFile.dir,
+    `${parsedFile.name}-passlog`
+  );
+  console.log({
+    ffmpeg,
+    filePath,
+    targetSizeMB,
+    bitrateKbps,
+    outputPath
+  });
+  console.log("Starting first pass...");
+  cleanupPassLogs(passLogFile);
+  try {
+    await execFileAsync$1(ffmpeg, [
+      "-y",
+      "-i",
+      filePath,
+      "-fps_mode",
+      "cfr",
+      "-c:v",
+      "libx264",
+      "-b:v",
+      `${bitrateKbps}k`,
+      "-pass",
+      "1",
+      "-passlogfile",
+      passLogFile,
+      "-an",
+      "-f",
+      "null",
+      process.platform === "win32" ? "NUL" : "/dev/null"
+    ]);
+  } catch (error) {
+    cleanupPassLogs(passLogFile);
+    throw error;
+  }
+  console.log("First pass finished");
+  return new Promise((resolve, reject) => {
+    const ffmpegProcess = spawn(ffmpeg, [
+      "-y",
+      "-i",
+      filePath,
+      "-fps_mode",
+      "cfr",
+      "-c:v",
+      "libx264",
+      "-b:v",
+      `${bitrateKbps}k`,
+      "-pass",
+      "2",
+      "-passlogfile",
+      passLogFile,
+      "-c:a",
+      "aac",
+      "-b:a",
+      `${audioBitrateKbps}k`,
+      "-progress",
+      "pipe:1",
+      outputPath
+    ]);
+    console.log("FFmpeg process created");
+    let finished = false;
+    ffmpegProcess.on(
+      "error",
+      (error) => {
+        if (finished) return;
+        finished = true;
+        console.error(
+          "FFmpeg process error:",
+          error
+        );
+        cleanupPassLogs(passLogFile);
+        reject(error);
+      }
+    );
+    let stderrOutput = "";
+    ffmpegProcess.stderr.on(
+      "data",
+      (data) => {
+        stderrOutput += data.toString();
+      }
+    );
+    ffmpegProcess.stdout.on("data", (data) => {
+      const output = data.toString();
+      const match = output.match(
+        /out_time_ms=(\d+)/
+      );
+      if (match) {
+        const currentSeconds = Number(match[1]) / 1e6;
+        const progress = Math.min(
+          100,
+          Math.floor(
+            currentSeconds / duration * 100
+          )
+        );
+        onProgress(progress);
+      }
+    });
+    ffmpegProcess.on("close", (code) => {
+      if (finished) return;
+      finished = true;
+      console.log(
+        `FFmpeg closed with code ${code}`
+      );
+      cleanupPassLogs(passLogFile);
+      if (code === 0) {
+        console.log(
+          "Compression finished"
+        );
+        onProgress(100);
+        resolve(outputPath);
+      } else {
+        reject(
+          new Error(
+            `FFmpeg exited with code ${code}
+${stderrOutput}`
+          )
+        );
+      }
+    });
+  });
+}
+function cleanupPassLogs(passLogFile) {
+  try {
+    fs.unlinkSync(
+      `${passLogFile}-0.log`
+    );
+  } catch {
+  }
+  try {
+    fs.unlinkSync(
+      `${passLogFile}-0.log.mbtree`
+    );
+  } catch {
+  }
+}
 const execFileAsync = promisify(execFile);
 const require$1 = createRequire(import.meta.url);
 const ffprobe = require$1("ffprobe-static");
-const ffmpeg = require$1("ffmpeg-static");
 async function selectVideo() {
   const result = await dialog.showOpenDialog({
     properties: ["openFile"],
@@ -49,86 +334,20 @@ async function getVideoInfo(filePath) {
     codec: videoStream.codec_name
   };
 }
-async function compressVideo(filePath, targetSizeMB, duration, onProgress) {
-  const audioBitrateKbps = 128;
-  const audioBits = audioBitrateKbps * 1e3 * duration;
-  const targetBits = targetSizeMB * 1024 * 1024 * 8;
-  const videoBits = targetBits - audioBits;
-  const videoBitrate = Math.floor(videoBits / duration);
-  const bitrateKbps = Math.floor(videoBitrate / 1e3);
-  if (bitrateKbps < 100) {
-    throw new Error(
-      "Tamanho alvo muito pequeno para este vídeo"
-    );
+async function compressVideo(filePath, targetSizeMB, duration, useTwoPass, onProgress) {
+  if (useTwoPass) {
+    return twoPassCompression({
+      filePath,
+      targetSizeMB,
+      duration,
+      onProgress
+    });
   }
-  const parsedFile = path.parse(filePath);
-  const outputPath = path.join(
-    parsedFile.dir,
-    `${parsedFile.name}-compressed.mp4`
-  );
-  console.log({
-    ffmpeg,
+  return onePassCompression({
     filePath,
     targetSizeMB,
-    bitrateKbps,
-    outputPath
-  });
-  return new Promise((resolve, reject) => {
-    const ffmpegProcess = spawn(
-      ffmpeg,
-      [
-        "-y",
-        "-i",
-        filePath,
-        "-b:v",
-        `${bitrateKbps}k`,
-        "-c:v",
-        "libx264",
-        "-c:a",
-        "aac",
-        "-progress",
-        "pipe:1",
-        outputPath
-      ]
-    );
-    console.log("FFmpeg process created");
-    ffmpegProcess.stdout.on("data", (data) => {
-      const output = data.toString();
-      const match = output.match(
-        /out_time_ms=(\d+)/
-      );
-      if (match) {
-        const currentSeconds = Number(match[1]) / 1e6;
-        const progress = Math.min(
-          100,
-          Math.floor(
-            currentSeconds / duration * 100
-          )
-        );
-        console.log(
-          `Progress: ${progress}%`
-        );
-        onProgress(progress);
-      }
-    });
-    ffmpegProcess.on("close", (code) => {
-      console.log(
-        `FFmpeg closed with code ${code}`
-      );
-      if (code === 0) {
-        console.log(
-          "Compression finished"
-        );
-        onProgress(100);
-        resolve(outputPath);
-      } else {
-        reject(
-          new Error(
-            `FFmpeg exited with code ${code}`
-          )
-        );
-      }
-    });
+    duration,
+    onProgress
   });
 }
 const __dirname$1 = path.dirname(fileURLToPath(import.meta.url));
@@ -172,9 +391,9 @@ ipcMain.handle(
     }
   }
 );
-ipcMain.handle("compress-video", async (_, filePath, targetSizeMB, duration) => {
+ipcMain.handle("compress-video", async (_, filePath, targetSizeMB, duration, useTwoPass) => {
   try {
-    return await compressVideo(filePath, targetSizeMB, duration, (progress) => {
+    return await compressVideo(filePath, targetSizeMB, duration, useTwoPass, (progress) => {
       win == null ? void 0 : win.webContents.send(
         "compression-progress",
         progress

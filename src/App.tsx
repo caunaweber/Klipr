@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react'
 import './App.css'
-import { VideoInfo } from './types/video'
+import { VideoInfo } from '../electron/types/video'
 
 function App() {
   const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null)
   const [compressedPath, setCompressedPath] = useState('')
   const [targetSizeMB, setTargetSizeMB] = useState<string>('10')
   const [progress, setProgress] = useState(0)
-
+  const [useTwoPass, setUseTwoPass] = useState(false)
 
   const selectVideo = async () => {
     const path =
@@ -49,7 +49,8 @@ function App() {
         await window.videoCompressor.compressVideo(
           videoInfo.filePath,
           Number(targetSizeMB),
-          videoInfo.duration
+          videoInfo.duration,
+          useTwoPass
         )
 
       setCompressedPath(outputPath)
@@ -60,11 +61,11 @@ function App() {
   }
 
   useEffect(() => {
-    window.videoCompressor.onProgress(
-      (progress) => {
-        setProgress(progress)
-      }
-    )
+    const unsubscribe =
+      window.videoCompressor.onProgress(
+        setProgress
+      )
+    return unsubscribe
   }, [])
 
   return (
@@ -115,6 +116,18 @@ function App() {
           setTargetSizeMB(e.target.value)
         }
       />
+
+      <label>
+        <input
+          type="checkbox"
+          checked={useTwoPass}
+          onChange={(e) =>
+            setUseTwoPass(e.target.checked)
+          }
+        />
+
+        2-pass compression
+      </label>
 
       <button onClick={compressVideo}>
         Comprimir
