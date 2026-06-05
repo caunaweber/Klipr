@@ -55,7 +55,12 @@ ipcMain.handle('get-video-info', async (_, filePath: string) => {
 
 ipcMain.handle('compress-video', async (_, filePath: string, targetSizeMB: number, duration: number) => {
   try {
-    return await compressVideo(filePath, targetSizeMB, duration)
+    return await compressVideo(filePath, targetSizeMB, duration, (progress) => {
+      win?.webContents.send(
+        'compression-progress',
+        progress
+      )
+    })
   } catch (error) {
     console.error(error)
     throw error

@@ -2,7 +2,7 @@ import { dialog, app, BrowserWindow, ipcMain } from "electron";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { createRequire } from "node:module";
-import { execFile } from "child_process";
+import { execFile, spawn } from "child_process";
 import { promisify } from "util";
 import fs from "fs";
 const execFileAsync = promisify(execFile);
@@ -49,33 +49,87 @@ async function getVideoInfo(filePath) {
     codec: videoStream.codec_name
   };
 }
-async function compressVideo(filePath, targetSizeMB, duration) {
+async function compressVideo(filePath, targetSizeMB, duration, onProgress) {
+  const audioBitrateKbps = 128;
+  const audioBits = audioBitrateKbps * 1e3 * duration;
   const targetBits = targetSizeMB * 1024 * 1024 * 8;
-  const videoBitrate = Math.floor(targetBits / duration);
+  const videoBits = targetBits - audioBits;
+  const videoBitrate = Math.floor(videoBits / duration);
   const bitrateKbps = Math.floor(videoBitrate / 1e3);
+  if (bitrateKbps < 100) {
+    throw new Error(
+      "Tamanho alvo muito pequeno para este vídeo"
+    );
+  }
   const parsedFile = path.parse(filePath);
-  const outputPath = path.join(parsedFile.dir, `${parsedFile.name}-compressed.mp4`);
+  const outputPath = path.join(
+    parsedFile.dir,
+    `${parsedFile.name}-compressed.mp4`
+  );
   console.log({
+    ffmpeg,
+    filePath,
     targetSizeMB,
-    duration,
     bitrateKbps,
     outputPath
   });
-  await execFileAsync(
-    ffmpeg,
-    [
-      "-i",
-      filePath,
-      "-b:v",
-      `${bitrateKbps}k`,
-      "-c:v",
-      "libx264",
-      "-c:a",
-      "aac",
-      outputPath
-    ]
-  );
-  return outputPath;
+  return new Promise((resolve, reject) => {
+    const ffmpegProcess = spawn(
+      ffmpeg,
+      [
+        "-y",
+        "-i",
+        filePath,
+        "-b:v",
+        `${bitrateKbps}k`,
+        "-c:v",
+        "libx264",
+        "-c:a",
+        "aac",
+        "-progress",
+        "pipe:1",
+        outputPath
+      ]
+    );
+    console.log("FFmpeg process created");
+    ffmpegProcess.stdout.on("data", (data) => {
+      const output = data.toString();
+      const match = output.match(
+        /out_time_ms=(\d+)/
+      );
+      if (match) {
+        const currentSeconds = Number(match[1]) / 1e6;
+        const progress = Math.min(
+          100,
+          Math.floor(
+            currentSeconds / duration * 100
+          )
+        );
+        console.log(
+          `Progress: ${progress}%`
+        );
+        onProgress(progress);
+      }
+    });
+    ffmpegProcess.on("close", (code) => {
+      console.log(
+        `FFmpeg closed with code ${code}`
+      );
+      if (code === 0) {
+        console.log(
+          "Compression finished"
+        );
+        onProgress(100);
+        resolve(outputPath);
+      } else {
+        reject(
+          new Error(
+            `FFmpeg exited with code ${code}`
+          )
+        );
+      }
+    });
+  });
 }
 const __dirname$1 = path.dirname(fileURLToPath(import.meta.url));
 process.env.APP_ROOT = path.join(__dirname$1, "..");
@@ -120,7 +174,12 @@ ipcMain.handle(
 );
 ipcMain.handle("compress-video", async (_, filePath, targetSizeMB, duration) => {
   try {
-    return await compressVideo(filePath, targetSizeMB, duration);
+    return await compressVideo(filePath, targetSizeMB, duration, (progress) => {
+      win == null ? void 0 : win.webContents.send(
+        "compression-progress",
+        progress
+      );
+    });
   } catch (error) {
     console.error(error);
     throw error;

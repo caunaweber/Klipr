@@ -8,4 +8,11 @@ contextBridge.exposeInMainWorld('videoCompressor', {
 
   compressVideo: (filePath: string, targetSizeMB: number, duration: number) =>
     ipcRenderer.invoke('compress-video', filePath, targetSizeMB, duration),
+
+  onProgress: (callback: (progress: number) => void) => {
+    ipcRenderer.on('compression-progress', (_, progress: number) => {
+      callback(progress)
+    })
+  },
+
 })

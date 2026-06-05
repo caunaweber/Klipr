@@ -1,6 +1,6 @@
 import { dialog } from 'electron'
 import { createRequire } from 'node:module'
-import { execFile } from 'child_process'
+import { execFile, spawn } from 'child_process'
 import { promisify } from 'util'
 import fs from 'fs'
 import path from 'node:path'
@@ -56,37 +56,119 @@ export async function getVideoInfo(filePath: string): Promise<VideoInfo> {
   }
 }
 
-export async function compressVideo(filePath: string, targetSizeMB: number, duration: number): Promise<string> {
+export async function compressVideo( filePath: string, targetSizeMB: number, duration: number,
+  onProgress: (progress: number) => void
+): Promise<string> {
+
+  const audioBitrateKbps = 128
+  const audioBits = audioBitrateKbps * 1000 * duration
   const targetBits = targetSizeMB * 1024 * 1024 * 8
-  const videoBitrate = Math.floor(targetBits / duration)
+  const videoBits = targetBits - audioBits
+  const videoBitrate = Math.floor(videoBits / duration)
   const bitrateKbps = Math.floor(videoBitrate / 1000)
+  
+  if (bitrateKbps < 100) {
+  throw new Error(
+    'Tamanho alvo muito pequeno para este vídeo'
+  )
+}
+
   const parsedFile = path.parse(filePath)
-  const outputPath = path.join(parsedFile.dir, `${parsedFile.name}-compressed.mp4`)
+
+  const outputPath = path.join(
+    parsedFile.dir,
+    `${parsedFile.name}-compressed.mp4`
+  )
 
   console.log({
+    ffmpeg,
+    filePath,
     targetSizeMB,
-    duration,
     bitrateKbps,
     outputPath
   })
 
-  await execFileAsync(
-    ffmpeg,
-    [
-      '-i',
-      filePath,
+  return new Promise((resolve, reject) => {
 
-      '-b:v',
-      `${bitrateKbps}k`,
+    const ffmpegProcess = spawn(
+      ffmpeg,
+      [
+        '-y',
+        '-i',
+        filePath,
 
-      '-c:v',
-      'libx264',
+        '-b:v',
+        `${bitrateKbps}k`,
 
-      '-c:a',
-      'aac',
+        '-c:v',
+        'libx264',
 
-      outputPath
-    ]
-  )
-  return outputPath
+        '-c:a',
+        'aac',
+
+        '-progress',
+        'pipe:1',
+
+        outputPath
+      ]
+    )
+
+    console.log('FFmpeg process created')
+
+    ffmpegProcess.stdout.on('data', (data) => {
+      const output = data.toString()
+
+      const match =
+        output.match(
+          /out_time_ms=(\d+)/
+        )
+
+      if (match) {
+
+        const currentSeconds =
+          Number(match[1]) / 1000000
+
+        const progress =
+          Math.min(
+            100,
+            Math.floor(
+              (currentSeconds / duration) * 100
+            )
+          )
+
+        console.log(
+          `Progress: ${progress}%`
+        )
+
+        onProgress(progress)
+      }
+    })
+
+    ffmpegProcess.on('close', (code) => {
+
+      console.log(
+        `FFmpeg closed with code ${code}`
+      )
+
+      if (code === 0) {
+
+        console.log(
+          'Compression finished'
+        )
+
+        onProgress(100)
+
+        resolve(outputPath)
+
+      } else {
+
+        reject(
+          new Error(
+            `FFmpeg exited with code ${code}`
+          )
+        )
+      }
+    })
+  })
 }
+

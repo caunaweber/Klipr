@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import './App.css'
 import { VideoInfo } from './types/video'
 
@@ -6,6 +6,7 @@ function App() {
   const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null)
   const [compressedPath, setCompressedPath] = useState('')
   const [targetSizeMB, setTargetSizeMB] = useState<string>('10')
+  const [progress, setProgress] = useState(0)
 
 
   const selectVideo = async () => {
@@ -57,6 +58,14 @@ function App() {
       console.error(error)
     }
   }
+
+  useEffect(() => {
+    window.videoCompressor.onProgress(
+      (progress) => {
+        setProgress(progress)
+      }
+    )
+  }, [])
 
   return (
     <div>
@@ -110,6 +119,11 @@ function App() {
       <button onClick={compressVideo}>
         Comprimir
       </button>
+
+      <progress
+        value={progress}
+        max={100}
+      />
 
       {compressedPath && (
         <p>
