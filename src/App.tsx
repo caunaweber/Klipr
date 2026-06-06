@@ -8,6 +8,7 @@ function App() {
   const [targetSizeMB, setTargetSizeMB] = useState<string>('10')
   const [progress, setProgress] = useState(0)
   const [useTwoPass, setUseTwoPass] = useState(false)
+  const [isCompressing, setIsCompressing] = useState(false)
 
   const selectVideo = async () => {
     const path =
@@ -22,6 +23,7 @@ function App() {
       await window.videoCompressor.getVideoInfo(path)
 
     setVideoInfo(info)
+    setProgress(0)
   }
 
   const formatDuration = (
@@ -44,7 +46,13 @@ function App() {
   const compressVideo = async () => {
     if (!videoInfo) return
 
+    setIsCompressing(true)
+
     try {
+
+      setProgress(0)
+      setCompressedPath('')
+
       const outputPath =
         await window.videoCompressor.compressVideo(
           videoInfo.filePath,
@@ -56,7 +64,13 @@ function App() {
       setCompressedPath(outputPath)
 
     } catch (error) {
+
       console.error(error)
+
+    } finally {
+
+      setIsCompressing(false)
+
     }
   }
 
@@ -72,7 +86,8 @@ function App() {
     <div>
       <h1>Video Compressor</h1>
 
-      <button onClick={selectVideo}>
+      <button onClick={selectVideo}
+        disabled={isCompressing}>
         Selecionar vídeo
       </button>
 
@@ -129,8 +144,18 @@ function App() {
         2-pass compression
       </label>
 
-      <button onClick={compressVideo}>
-        Comprimir
+      <button
+        onClick={compressVideo}
+        disabled={
+          !videoInfo ||
+          isCompressing
+        }
+      >
+        {
+          isCompressing
+            ? 'Comprimindo...'
+            : 'Comprimir'
+        }
       </button>
 
       <progress

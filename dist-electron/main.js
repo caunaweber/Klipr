@@ -21,6 +21,36 @@ function calculateVideoBitrate(targetSizeMB, duration, audioBitrateKbps = 128) {
     audioBitrateKbps
   };
 }
+function attachProgressListener(process2, duration, onProgress, startPercent, endPercent) {
+  process2.stdout.on(
+    "data",
+    (data) => {
+      const output = data.toString();
+      const match = output.match(
+        /out_time_ms=(\d+)/
+      );
+      if (!match) return;
+      const currentSeconds = Number(match[1]) / 1e6;
+      const progress = Math.min(
+        endPercent,
+        startPercent + Math.floor(
+          currentSeconds / duration * (endPercent - startPercent)
+        )
+      );
+      onProgress(progress);
+    }
+  );
+}
+function captureStderr(process2) {
+  let stderrOutput = "";
+  process2.stderr.on(
+    "data",
+    (data) => {
+      stderrOutput += data.toString();
+    }
+  );
+  return () => stderrOutput;
+}
 const require$3 = createRequire(import.meta.url);
 const ffmpeg$1 = require$3("ffmpeg-static");
 async function onePassCompression(options) {
@@ -83,32 +113,14 @@ async function onePassCompression(options) {
         reject(error);
       }
     );
-    let stderrOutput = "";
-    ffmpegProcess.stderr.on(
-      "data",
-      (data) => {
-        stderrOutput += data.toString();
-      }
+    const getStderr = captureStderr(ffmpegProcess);
+    attachProgressListener(
+      ffmpegProcess,
+      duration,
+      onProgress,
+      0,
+      100
     );
-    ffmpegProcess.stdout.on("data", (data) => {
-      const output = data.toString();
-      const match = output.match(
-        /out_time_ms=(\d+)/
-      );
-      if (match) {
-        const currentSeconds = Number(match[1]) / 1e6;
-        const progress = Math.min(
-          100,
-          Math.floor(
-            currentSeconds / duration * 100
-          )
-        );
-        console.log(
-          `Progress: ${progress}%`
-        );
-        onProgress(progress);
-      }
-    });
     ffmpegProcess.on("close", (code) => {
       if (finished) return;
       finished = true;
@@ -125,14 +137,13 @@ async function onePassCompression(options) {
         reject(
           new Error(
             `FFmpeg exited with code ${code}
-${stderrOutput}`
+${getStderr()}`
           )
         );
       }
     });
   });
 }
-const execFileAsync$1 = promisify(execFile);
 const require$2 = createRequire(import.meta.url);
 const ffmpeg = require$2("ffmpeg-static");
 async function twoPassCompression(options) {
@@ -167,8 +178,8 @@ async function twoPassCompression(options) {
   });
   console.log("Starting first pass...");
   cleanupPassLogs(passLogFile);
-  try {
-    await execFileAsync$1(ffmpeg, [
+  await new Promise((resolve, reject) => {
+    const pass1Process = spawn(ffmpeg, [
       "-y",
       "-i",
       filePath,
@@ -183,15 +194,54 @@ async function twoPassCompression(options) {
       "-passlogfile",
       passLogFile,
       "-an",
+      "-progress",
+      "pipe:1",
       "-f",
       "null",
       process.platform === "win32" ? "NUL" : "/dev/null"
     ]);
-  } catch (error) {
-    cleanupPassLogs(passLogFile);
-    throw error;
-  }
-  console.log("First pass finished");
+    let finished = false;
+    pass1Process.on(
+      "error",
+      (error) => {
+        if (finished) return;
+        finished = true;
+        console.error(
+          "First pass process error:",
+          error
+        );
+        cleanupPassLogs(passLogFile);
+        reject(error);
+      }
+    );
+    const getStderr = captureStderr(pass1Process);
+    attachProgressListener(
+      pass1Process,
+      duration,
+      onProgress,
+      0,
+      50
+    );
+    pass1Process.on(
+      "close",
+      (code) => {
+        if (finished) return;
+        finished = true;
+        if (code === 0) {
+          onProgress(50);
+          resolve();
+        } else {
+          cleanupPassLogs(passLogFile);
+          reject(
+            new Error(
+              `First pass failed with code ${code}
+${getStderr()}`
+            )
+          );
+        }
+      }
+    );
+  });
   return new Promise((resolve, reject) => {
     const ffmpegProcess = spawn(ffmpeg, [
       "-y",
@@ -230,29 +280,14 @@ async function twoPassCompression(options) {
         reject(error);
       }
     );
-    let stderrOutput = "";
-    ffmpegProcess.stderr.on(
-      "data",
-      (data) => {
-        stderrOutput += data.toString();
-      }
+    const getStderr = captureStderr(ffmpegProcess);
+    attachProgressListener(
+      ffmpegProcess,
+      duration,
+      onProgress,
+      50,
+      100
     );
-    ffmpegProcess.stdout.on("data", (data) => {
-      const output = data.toString();
-      const match = output.match(
-        /out_time_ms=(\d+)/
-      );
-      if (match) {
-        const currentSeconds = Number(match[1]) / 1e6;
-        const progress = Math.min(
-          100,
-          Math.floor(
-            currentSeconds / duration * 100
-          )
-        );
-        onProgress(progress);
-      }
-    });
     ffmpegProcess.on("close", (code) => {
       if (finished) return;
       finished = true;
@@ -270,7 +305,7 @@ async function twoPassCompression(options) {
         reject(
           new Error(
             `FFmpeg exited with code ${code}
-${stderrOutput}`
+${getStderr()}`
           )
         );
       }

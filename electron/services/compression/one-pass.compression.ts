@@ -3,7 +3,7 @@ import { createRequire } from 'node:module'
 import { spawn } from 'child_process'
 import path from 'node:path'
 import { calculateVideoBitrate } from '../../utils/bitrate.util'
-
+import { attachProgressListener, captureStderr } from '../../utils/ffmpeg.utils'
 
 const require = createRequire(import.meta.url)
 const ffmpeg = require('ffmpeg-static')
@@ -91,43 +91,16 @@ export async function onePassCompression(
             }
         )
 
-        let stderrOutput = ''
+        const getStderr =
+            captureStderr(ffmpegProcess)
 
-        ffmpegProcess.stderr.on(
-            'data',
-            (data) => {
-                stderrOutput += data.toString()
-            }
+        attachProgressListener(
+            ffmpegProcess,
+            duration,
+            onProgress,
+            0,
+            100
         )
-
-        ffmpegProcess.stdout.on('data', (data) => {
-            const output = data.toString()
-
-            const match =
-                output.match(
-                    /out_time_ms=(\d+)/
-                )
-
-            if (match) {
-
-                const currentSeconds =
-                    Number(match[1]) / 1000000
-
-                const progress =
-                    Math.min(
-                        100,
-                        Math.floor(
-                            (currentSeconds / duration) * 100
-                        )
-                    )
-
-                // console.log(
-                //     `Progress: ${progress}%`
-                // )
-
-                onProgress(progress)
-            }
-        })
 
         ffmpegProcess.on('close', (code) => {
 
@@ -153,7 +126,7 @@ export async function onePassCompression(
 
                 reject(
                     new Error(
-                        `FFmpeg exited with code ${code}\n${stderrOutput}`
+                        `FFmpeg exited with code ${code}\n${getStderr()}`
                     )
                 )
             }

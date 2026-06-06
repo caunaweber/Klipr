@@ -1,12 +1,11 @@
 import { CompressionOptions } from '../../types/compression'
 import { createRequire } from 'node:module'
-import { execFile, spawn } from 'child_process'
-import { promisify } from 'util'
+import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'node:path'
 import { calculateVideoBitrate } from '../../utils/bitrate.util'
+import { attachProgressListener, captureStderr } from '../../utils/ffmpeg.utils'
 
-const execFileAsync = promisify(execFile)
 
 const require = createRequire(import.meta.url)
 const ffmpeg = require('ffmpeg-static')
@@ -53,8 +52,9 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
 
     cleanupPassLogs(passLogFile)
 
-    try {
-        await execFileAsync(ffmpeg, [
+    await new Promise<void>((resolve, reject) => {
+
+        const pass1Process = spawn(ffmpeg, [
             '-y',
             '-i',
             filePath,
@@ -76,6 +76,9 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
 
             '-an',
 
+            '-progress',
+            'pipe:1',
+
             '-f',
             'null',
 
@@ -83,12 +86,62 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
                 ? 'NUL'
                 : '/dev/null'
         ])
-    } catch (error) {
-        cleanupPassLogs(passLogFile)
-        throw error
-    }
 
-    console.log('First pass finished')
+        let finished = false
+
+        pass1Process.on(
+            'error',
+            (error) => {
+
+                if (finished) return
+
+                finished = true
+
+                console.error(
+                    'First pass process error:',
+                    error
+                )
+
+                cleanupPassLogs(passLogFile)
+
+                reject(error)
+            }
+        )
+
+        const getStderr =
+            captureStderr(pass1Process)
+
+        attachProgressListener(
+            pass1Process,
+            duration,
+            onProgress,
+            0,
+            50
+        )
+
+        pass1Process.on(
+            'close',
+            (code) => {
+
+                if (finished) return
+
+                finished = true
+
+                if (code === 0) {
+                    onProgress(50)
+                    resolve()
+                } else {
+                    cleanupPassLogs(passLogFile)
+
+                    reject(
+                        new Error(
+                            `First pass failed with code ${code}\n${getStderr()}`
+                        )
+                    )
+                }
+            }
+        )
+    })
 
     return new Promise((resolve, reject) => {
 
@@ -147,43 +200,16 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
             }
         )
 
-        let stderrOutput = ''
+        const getStderr =
+            captureStderr(ffmpegProcess)
 
-        ffmpegProcess.stderr.on(
-            'data',
-            (data) => {
-                stderrOutput += data.toString()
-            }
+        attachProgressListener(
+            ffmpegProcess,
+            duration,
+            onProgress,
+            50,
+            100
         )
-
-        ffmpegProcess.stdout.on('data', (data) => {
-            const output = data.toString()
-
-            const match =
-                output.match(
-                    /out_time_ms=(\d+)/
-                )
-
-            if (match) {
-
-                const currentSeconds =
-                    Number(match[1]) / 1000000
-
-                const progress =
-                    Math.min(
-                        100,
-                        Math.floor(
-                            (currentSeconds / duration) * 100
-                        )
-                    )
-
-                // console.log(
-                //     `Progress: ${progress}%`
-                // )
-
-                onProgress(progress)
-            }
-        })
 
         ffmpegProcess.on('close', (code) => {
 
@@ -211,7 +237,7 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
 
                 reject(
                     new Error(
-                        `FFmpeg exited with code ${code}\n${stderrOutput}`
+                        `FFmpeg exited with code ${code}\n${getStderr()}`
                     )
                 )
             }
@@ -234,3 +260,4 @@ function cleanupPassLogs(
         )
     } catch { }
 }
+
