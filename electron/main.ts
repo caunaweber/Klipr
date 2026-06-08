@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain } from 'electron'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { selectVideo, getVideoInfo, compressVideo } from './services/video.services'
+import { CompressionCodec } from './types/compression'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -53,9 +54,16 @@ ipcMain.handle('get-video-info', async (_, filePath: string) => {
 }
 )
 
-ipcMain.handle('compress-video', async (_, filePath: string, targetSizeMB: number, duration: number, width: number, height: number, useTwoPass: boolean) => {
+ipcMain.handle('compress-video', async (_, filePath: string, targetSizeMB: number, duration: number, width: number, height: number, useTwoPass: boolean, codec: CompressionCodec) => {
   try {
-    return await compressVideo(filePath, targetSizeMB, duration, width, height, useTwoPass, (progress) => {
+    return await compressVideo(filePath, 
+      targetSizeMB, 
+      duration, 
+      width, 
+      height, 
+      useTwoPass, 
+      codec, 
+      (progress) => {
       win?.webContents.send(
         'compression-progress',
         progress

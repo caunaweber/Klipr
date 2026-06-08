@@ -1,7 +1,7 @@
 export function calculateVideoBitrate(
   targetSizeMB: number,
   duration: number,
-  audioBitrateKbps = 128
+  audioBitrateKbps = 96
 ) {
   const overheadFactor = 0.98
 

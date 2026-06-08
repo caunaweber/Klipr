@@ -1,4 +1,5 @@
 import { ipcRenderer, contextBridge } from 'electron'
+import { CompressionCodec } from './types/compression'
 
 contextBridge.exposeInMainWorld('videoCompressor', {
   selectVideo: () => ipcRenderer.invoke('select-video'),
@@ -6,8 +7,15 @@ contextBridge.exposeInMainWorld('videoCompressor', {
   getVideoInfo: (filePath: string) =>
     ipcRenderer.invoke('get-video-info', filePath),
 
-  compressVideo: (filePath: string, targetSizeMB: number, duration: number, width: number, height: number, useTwoPass: boolean) =>
-    ipcRenderer.invoke('compress-video', filePath, targetSizeMB, duration, width, height, useTwoPass),
+  compressVideo: (filePath: string, targetSizeMB: number, duration: number, width: number, height: number, useTwoPass: boolean, codec: CompressionCodec) =>
+    ipcRenderer.invoke('compress-video', 
+      filePath, 
+      targetSizeMB, 
+      duration, 
+      width, 
+      height, 
+      useTwoPass, 
+      codec,),
 
   onProgress: (callback: (progress: number) => void) => {
     const listener = (_: Electron.IpcRendererEvent, progress: number) => {

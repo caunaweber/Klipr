@@ -1,10 +1,10 @@
 import { CompressionOptions } from '../../types/compression'
 import { createRequire } from 'node:module'
 import { spawn } from 'child_process'
-import path from 'node:path'
 import { calculateVideoBitrate } from '../../utils/bitrate.util'
 import { attachProgressListener, captureStderr } from '../../utils/ffmpeg.utils'
 import { calculateResolution } from '../../utils/resolution.util'
+import { buildOutputPath } from '../../utils/file.utils'
 
 const require = createRequire(import.meta.url)
 const ffmpeg = require('ffmpeg-static')
@@ -19,7 +19,8 @@ export async function onePassCompression(
         duration,
         onProgress,
         width,
-        height
+        height,
+        codec
     } = options
 
     const {
@@ -29,12 +30,9 @@ export async function onePassCompression(
 
     const resolution = calculateResolution(width, height, bitrateKbps)
 
-    const parsedFile = path.parse(filePath)
+    const outputPath = buildOutputPath(filePath, codec, targetSizeMB, false)
 
-    const outputPath = path.join(
-        parsedFile.dir,
-        `${parsedFile.name}-compressed.mp4`
-    )
+    const encoder = codec === 'h265' ? 'libx265' : 'libx264'
 
     console.log({
         ffmpeg,
@@ -53,11 +51,14 @@ export async function onePassCompression(
                 '-i',
                 filePath,
 
+                '-preset',
+                'slow',
+
                 '-b:v',
                 `${bitrateKbps}k`,
 
                 '-c:v',
-                'libx264',
+                encoder,
 
                 '-c:a',
                 'aac',

@@ -6,6 +6,7 @@ import path from 'node:path'
 import { calculateVideoBitrate } from '../../utils/bitrate.util'
 import { attachProgressListener, captureStderr } from '../../utils/ffmpeg.utils'
 import { calculateResolution } from '../../utils/resolution.util'
+import { buildOutputPath } from '../../utils/file.utils'
 
 
 const require = createRequire(import.meta.url)
@@ -20,7 +21,8 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
         duration,
         onProgress,
         width,
-        height
+        height,
+        codec,
     } = options
 
     const {
@@ -32,13 +34,12 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
     )
 
     const resolution = calculateResolution(width, height, bitrateKbps)
-    
+
     const parsedFile = path.parse(filePath)
 
-    const outputPath = path.join(
-        parsedFile.dir,
-        `${parsedFile.name}-compressed.mp4`
-    )
+    const outputPath = buildOutputPath(filePath, codec, targetSizeMB, true)
+
+    const encoder = codec === 'h265' ? 'libx265' : 'libx264'
 
     const passLogFile = path.join(
         parsedFile.dir,
@@ -68,7 +69,10 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
             'cfr',
 
             '-c:v',
-            'libx264',
+            encoder,
+
+            '-preset',
+            'slow',
 
             '-b:v',
             `${bitrateKbps}k`,
@@ -159,7 +163,10 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
             'cfr',
 
             '-c:v',
-            'libx264',
+            encoder,
+
+            '-preset',
+            'slow',
 
             '-b:v',
             `${bitrateKbps}k`,

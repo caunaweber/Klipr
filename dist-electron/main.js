@@ -5,7 +5,7 @@ import { createRequire } from "node:module";
 import { spawn, execFile } from "child_process";
 import { promisify } from "util";
 import fs from "fs";
-function calculateVideoBitrate(targetSizeMB, duration, audioBitrateKbps = 128) {
+function calculateVideoBitrate(targetSizeMB, duration, audioBitrateKbps = 96) {
   const overheadFactor = 0.98;
   const targetBits = targetSizeMB * 1024 * 1024 * 8 * overheadFactor;
   const audioBits = audioBitrateKbps * 1e3 * duration;
@@ -50,13 +50,13 @@ function captureStderr(process2) {
   return () => stderrOutput;
 }
 function calculateResolution(width, height, bitrateKbps) {
-  if (bitrateKbps < 700) {
+  if (bitrateKbps < 700 && height > 480) {
     return {
       width: 854,
       height: 480
     };
   }
-  if (bitrateKbps < 2e3) {
+  if (bitrateKbps < 2e3 && height > 720) {
     return {
       width: 1280,
       height: 720
@@ -67,6 +67,16 @@ function calculateResolution(width, height, bitrateKbps) {
     height
   };
 }
+function buildOutputPath(filePath, codec, targetSizeMB, useTwoPass) {
+  const parsedFile = path.parse(filePath);
+  const passMode = useTwoPass ? "2pass" : "1pass";
+  const sizeLabel = targetSizeMB.toString().replace(".", "_");
+  const codecName = codec === "h265" ? "hevc" : "avc";
+  return path.join(
+    parsedFile.dir,
+    `${parsedFile.name}-${codecName}-${passMode}-${sizeLabel}MB-compressed.mp4`
+  );
+}
 const require$3 = createRequire(import.meta.url);
 const ffmpeg$1 = require$3("ffmpeg-static");
 async function onePassCompression(options) {
@@ -76,18 +86,16 @@ async function onePassCompression(options) {
     duration,
     onProgress,
     width,
-    height
+    height,
+    codec
   } = options;
   const {
     bitrateKbps,
     audioBitrateKbps
   } = calculateVideoBitrate(targetSizeMB, duration);
   const resolution = calculateResolution(width, height, bitrateKbps);
-  const parsedFile = path.parse(filePath);
-  const outputPath = path.join(
-    parsedFile.dir,
-    `${parsedFile.name}-compressed.mp4`
-  );
+  const outputPath = buildOutputPath(filePath, codec, targetSizeMB, false);
+  const encoder = codec === "h265" ? "libx265" : "libx264";
   console.log({
     ffmpeg: ffmpeg$1,
     filePath,
@@ -102,10 +110,12 @@ async function onePassCompression(options) {
         "-y",
         "-i",
         filePath,
+        "-preset",
+        "slow",
         "-b:v",
         `${bitrateKbps}k`,
         "-c:v",
-        "libx264",
+        encoder,
         "-c:a",
         "aac",
         "-b:a",
@@ -171,7 +181,8 @@ async function twoPassCompression(options) {
     duration,
     onProgress,
     width,
-    height
+    height,
+    codec
   } = options;
   const {
     bitrateKbps,
@@ -182,10 +193,8 @@ async function twoPassCompression(options) {
   );
   const resolution = calculateResolution(width, height, bitrateKbps);
   const parsedFile = path.parse(filePath);
-  const outputPath = path.join(
-    parsedFile.dir,
-    `${parsedFile.name}-compressed.mp4`
-  );
+  const outputPath = buildOutputPath(filePath, codec, targetSizeMB, true);
+  const encoder = codec === "h265" ? "libx265" : "libx264";
   const passLogFile = path.join(
     parsedFile.dir,
     `${parsedFile.name}-passlog`
@@ -207,7 +216,9 @@ async function twoPassCompression(options) {
       "-fps_mode",
       "cfr",
       "-c:v",
-      "libx264",
+      encoder,
+      "-preset",
+      "slow",
       "-b:v",
       `${bitrateKbps}k`,
       "-pass",
@@ -271,7 +282,9 @@ ${getStderr()}`
       "-fps_mode",
       "cfr",
       "-c:v",
-      "libx264",
+      encoder,
+      "-preset",
+      "slow",
       "-b:v",
       `${bitrateKbps}k`,
       "-pass",
@@ -392,7 +405,7 @@ async function getVideoInfo(filePath) {
     codec: videoStream.codec_name
   };
 }
-async function compressVideo(filePath, targetSizeMB, duration, width, height, useTwoPass, onProgress) {
+async function compressVideo(filePath, targetSizeMB, duration, width, height, useTwoPass, codec, onProgress) {
   if (useTwoPass) {
     return twoPassCompression({
       filePath,
@@ -400,6 +413,7 @@ async function compressVideo(filePath, targetSizeMB, duration, width, height, us
       duration,
       width,
       height,
+      codec,
       onProgress
     });
   }
@@ -409,6 +423,7 @@ async function compressVideo(filePath, targetSizeMB, duration, width, height, us
     duration,
     width,
     height,
+    codec,
     onProgress
   });
 }
@@ -453,14 +468,23 @@ ipcMain.handle(
     }
   }
 );
-ipcMain.handle("compress-video", async (_, filePath, targetSizeMB, duration, width, height, useTwoPass) => {
+ipcMain.handle("compress-video", async (_, filePath, targetSizeMB, duration, width, height, useTwoPass, codec) => {
   try {
-    return await compressVideo(filePath, targetSizeMB, duration, width, height, useTwoPass, (progress) => {
-      win == null ? void 0 : win.webContents.send(
-        "compression-progress",
-        progress
-      );
-    });
+    return await compressVideo(
+      filePath,
+      targetSizeMB,
+      duration,
+      width,
+      height,
+      useTwoPass,
+      codec,
+      (progress) => {
+        win == null ? void 0 : win.webContents.send(
+          "compression-progress",
+          progress
+        );
+      }
+    );
   } catch (error) {
     console.error(error);
     throw error;

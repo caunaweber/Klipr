@@ -9,6 +9,8 @@ function App() {
   const [progress, setProgress] = useState(0)
   const [useTwoPass, setUseTwoPass] = useState(false)
   const [isCompressing, setIsCompressing] = useState(false)
+  const [codec, setCodec] = useState<'h265' | 'h264'>('h265')
+
 
   const selectVideo = async () => {
     const path =
@@ -60,7 +62,8 @@ function App() {
           videoInfo.duration,
           videoInfo.width,
           videoInfo.height,
-          useTwoPass
+          useTwoPass,
+          codec
         )
 
       setCompressedPath(outputPath)
@@ -87,6 +90,41 @@ function App() {
   return (
     <div>
       <h1>Video Compressor</h1>
+
+      <label>Codec:</label>
+
+      <select
+        value={codec}
+        onChange={(e) =>
+          setCodec(
+            e.target.value as
+            | 'h264'
+            | 'h265'
+          )
+        }
+      >
+        <option value="h264">
+          AVC (H.264)
+        </option>
+
+        <option value="h265">
+          HEVC (H.265)
+        </option>
+      </select>
+
+      <label>
+        <input
+          type="checkbox"
+          checked={useTwoPass}
+          onChange={(e) =>
+            setUseTwoPass(e.target.checked)
+          }
+        />
+
+        2-pass compression
+      </label>
+
+      <br />
 
       <button onClick={selectVideo}
         disabled={isCompressing}>
@@ -134,23 +172,12 @@ function App() {
         }
       />
 
-      <label>
-        <input
-          type="checkbox"
-          checked={useTwoPass}
-          onChange={(e) =>
-            setUseTwoPass(e.target.checked)
-          }
-        />
-
-        2-pass compression
-      </label>
-
+      <br />
       <button
         onClick={compressVideo}
         disabled={
           !videoInfo ||
-          isCompressing || 
+          isCompressing ||
           Number(targetSizeMB) >= videoInfo.sizeMB
         }
       >
@@ -160,6 +187,8 @@ function App() {
             : 'Comprimir'
         }
       </button>
+
+      <br />
 
       <progress
         value={progress}
