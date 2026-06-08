@@ -3,6 +3,9 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { selectVideo, getVideoInfo, compressVideo } from './services/video.services'
 import { CompressionCodec } from './types/compression'
+import { protocol } from 'electron'
+import mime from 'mime-types'
+import fs from 'node:fs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -54,25 +57,150 @@ ipcMain.handle('get-video-info', async (_, filePath: string) => {
 }
 )
 
-ipcMain.handle('compress-video', async (_, filePath: string, targetSizeMB: number, duration: number, width: number, height: number, useTwoPass: boolean, codec: CompressionCodec) => {
+ipcMain.handle('compress-video', async (_, filePath: string, targetSizeMB: number, duration: number, width: number, height: number,
+  useTwoPass: boolean, codec: CompressionCodec, startTime?: number, endTime?: number) => {
   try {
-    return await compressVideo(filePath, 
-      targetSizeMB, 
-      duration, 
-      width, 
-      height, 
-      useTwoPass, 
-      codec, 
+    return await compressVideo(filePath,
+      targetSizeMB,
+      duration,
+      width,
+      height,
+      useTwoPass,
+      codec,
       (progress) => {
-      win?.webContents.send(
-        'compression-progress',
-        progress
-      )
-    })
+        win?.webContents.send(
+          'compression-progress',
+          progress)
+      },
+      startTime,
+      endTime,)
   } catch (error) {
     console.error(error)
     throw error
   }
 })
 
-app.whenReady().then(createWindow)
+app.whenReady().then(() => {
+
+  protocol.handle(
+    'video',
+    async (request) => {
+
+      try {
+
+        const filePath =
+          decodeURIComponent(
+            request.url.slice(
+              'video://'.length
+            )
+          )
+
+        const stat =
+          await fs.promises.stat(
+            filePath
+          )
+
+        const range =
+          request.headers.get(
+            'range'
+          )
+
+        const contentType =
+          mime.lookup(filePath)?.toString() ||
+          'application/octet-stream'
+
+        if (!range) {
+
+          const stream =
+            fs.createReadStream(
+              filePath
+            )
+
+          return new Response(
+            stream as any,
+            {
+              headers: {
+                'Content-Type':
+                  contentType,
+                'Content-Length':
+                  String(stat.size),
+                'Accept-Ranges':
+                  'bytes'
+              }
+            }
+          )
+        }
+
+        const parts =
+          range.replace(
+            /bytes=/,
+            ''
+          ).split('-')
+
+        const start =
+          Number(parts[0])
+
+        if (
+          Number.isNaN(start)
+        ) {
+          return new Response(
+            'Invalid range',
+            {
+              status: 416
+            }
+          )
+        }
+
+        const end =
+          parts[1]
+            ? Number(parts[1])
+            : stat.size - 1
+
+        const chunkSize =
+          end - start + 1
+
+        const stream =
+          fs.createReadStream(
+            filePath,
+            {
+              start,
+              end
+            }
+          )
+
+        return new Response(
+          stream as any,
+          {
+            status: 206,
+            headers: {
+              'Content-Type':
+                contentType,
+              'Content-Length':
+                String(chunkSize),
+              'Content-Range':
+                `bytes ${start}-${end}/${stat.size}`,
+              'Accept-Ranges':
+                'bytes'
+            }
+          }
+        )
+
+      } catch (error) {
+
+        console.error(
+          'Video protocol error:',
+          error
+        )
+
+        return new Response(
+          'File not found',
+          {
+            status: 404
+          }
+        )
+      }
+    }
+  )
+
+  createWindow()
+})

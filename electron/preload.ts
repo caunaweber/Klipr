@@ -7,7 +7,8 @@ contextBridge.exposeInMainWorld('videoCompressor', {
   getVideoInfo: (filePath: string) =>
     ipcRenderer.invoke('get-video-info', filePath),
 
-  compressVideo: (filePath: string, targetSizeMB: number, duration: number, width: number, height: number, useTwoPass: boolean, codec: CompressionCodec) =>
+  compressVideo: (filePath: string, targetSizeMB: number, duration: number, width: number, height: number,
+    useTwoPass: boolean, codec: CompressionCodec, startTime?: number, endTime?: number) =>
     ipcRenderer.invoke('compress-video', 
       filePath, 
       targetSizeMB, 
@@ -15,7 +16,9 @@ contextBridge.exposeInMainWorld('videoCompressor', {
       width, 
       height, 
       useTwoPass, 
-      codec,),
+      codec, 
+      startTime, 
+      endTime),
 
   onProgress: (callback: (progress: number) => void) => {
     const listener = (_: Electron.IpcRendererEvent, progress: number) => {
@@ -29,5 +32,5 @@ contextBridge.exposeInMainWorld('videoCompressor', {
       ipcRenderer.removeListener('compression-progress', listener)
     }
   },
-
+  
 })

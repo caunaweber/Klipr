@@ -9,9 +9,7 @@ import { buildOutputPath } from '../../utils/file.utils'
 const require = createRequire(import.meta.url)
 const ffmpeg = require('ffmpeg-static')
 
-export async function onePassCompression(
-    options: CompressionOptions
-): Promise<string> {
+export async function onePassCompression(options: CompressionOptions): Promise<string> {
 
     const {
         filePath,
@@ -20,13 +18,28 @@ export async function onePassCompression(
         onProgress,
         width,
         height,
-        codec
+        codec,
+        startTime,
+        endTime
     } = options
 
-    const {
-        bitrateKbps,
-        audioBitrateKbps
-    } = calculateVideoBitrate(targetSizeMB, duration)
+    const start = startTime ?? 0
+    const end = endTime ?? duration
+
+    const clipDuration = end - start
+
+    if (clipDuration <= 0) {
+        throw new Error('Invalid clip duration')
+    }
+
+    const isTrimmed =
+        start > 0 || end < duration
+
+    const trimArgs = isTrimmed
+        ? ['-ss', String(start), '-t', String(clipDuration)]
+        : []
+
+    const { bitrateKbps, audioBitrateKbps } = calculateVideoBitrate(targetSizeMB, clipDuration)
 
     const resolution = calculateResolution(width, height, bitrateKbps)
 
@@ -34,20 +47,15 @@ export async function onePassCompression(
 
     const encoder = codec === 'h265' ? 'libx265' : 'libx264'
 
-    console.log({
-        ffmpeg,
-        filePath,
-        targetSizeMB,
-        bitrateKbps,
-        outputPath
-    })
-
     return new Promise((resolve, reject) => {
 
         const ffmpegProcess = spawn(
             ffmpeg,
             [
                 '-y',
+
+                ...trimArgs,
+
                 '-i',
                 filePath,
 
@@ -102,7 +110,7 @@ export async function onePassCompression(
 
         attachProgressListener(
             ffmpegProcess,
-            duration,
+            clipDuration,
             onProgress,
             0,
             100

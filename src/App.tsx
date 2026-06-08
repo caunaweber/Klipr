@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import './App.css'
 import { VideoInfo } from '../electron/types/video'
+import { Range } from 'react-range'
+import { useRef } from 'react'
 
 function App() {
   const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null)
@@ -10,7 +12,11 @@ function App() {
   const [useTwoPass, setUseTwoPass] = useState(false)
   const [isCompressing, setIsCompressing] = useState(false)
   const [codec, setCodec] = useState<'h265' | 'h264'>('h265')
+  const [clipStart, setClipStart] = useState(0)
+  const [clipEnd, setClipEnd] = useState(0)
+  const [activeThumb, setActiveThumb] = useState<number>(0)
 
+  const videoRef = useRef<HTMLVideoElement>(null)
 
   const selectVideo = async () => {
     const path =
@@ -25,24 +31,33 @@ function App() {
       await window.videoCompressor.getVideoInfo(path)
 
     setVideoInfo(info)
+
+    setClipStart(0)
+    setClipEnd(info.duration)
+
     setProgress(0)
   }
 
   const formatDuration = (
     seconds: number
   ) => {
-    const h =
-      Math.floor(seconds / 3600)
 
-    const m =
-      Math.floor(
-        (seconds % 3600) / 60
-      )
+    const minutes =
+      Math.floor(seconds / 60)
 
-    const s =
+    const remainingSeconds =
       Math.floor(seconds % 60)
 
-    return `${h}h ${m}m ${s}s`
+    const tenths =
+      Math.floor(
+        (seconds % 1) * 10
+      )
+
+    return `${minutes
+      .toString()
+      .padStart(2, '0')}:${remainingSeconds
+        .toString()
+        .padStart(2, '0')}.${tenths}`
   }
 
   const compressVideo = async () => {
@@ -63,7 +78,9 @@ function App() {
           videoInfo.width,
           videoInfo.height,
           useTwoPass,
-          codec
+          codec,
+          clipStart,
+          clipEnd,
         )
 
       setCompressedPath(outputPath)
@@ -154,14 +171,107 @@ function App() {
             {videoInfo.width} x
             {videoInfo.height}
           </p>
-
-          <p>
-            Codec:
-            {videoInfo.codec}
-          </p>
-
         </div>
       )}
+
+      {videoInfo && (
+        <>
+          <video
+            ref={videoRef}
+            src={`video://${encodeURIComponent(videoInfo.filePath)}`}
+            controls
+            width={400}
+            onLoadedMetadata={() =>
+              console.log('video carregado')
+            }
+            onError={(e) =>
+              console.error('erro video', e)
+            }
+          />
+        </>
+      )}
+
+      {videoInfo && (
+        <div>
+          <h3>trim</h3>
+
+          <Range
+            step={0.1}
+            min={0}
+            max={videoInfo.duration}
+            values={[clipStart, clipEnd]}
+            onChange={(values) => {
+
+              const [start, end] = values
+
+              if (end - start < 1) {
+                return
+              }
+
+              setClipStart(start)
+              setClipEnd(end)
+
+              if (!videoRef.current) {
+                return
+              }
+
+              videoRef.current.currentTime =
+                activeThumb === 0
+                  ? start
+                  : end
+            }}
+            renderTrack={({ props, children }) => (
+              <div
+                {...props}
+                style={{
+                  ...props.style,
+                  height: '6px',
+                  width: '100%',
+                  background: `linear-gradient(
+          to right,
+          #444 0%,
+          #444 ${(clipStart / videoInfo.duration) * 100}%,
+          #4caf50 ${(clipStart / videoInfo.duration) * 100}%,
+          #4caf50 ${(clipEnd / videoInfo.duration) * 100}%,
+          #444 ${(clipEnd / videoInfo.duration) * 100}%,
+          #444 100%
+        )`
+                }}
+              >
+                {children}
+              </div>
+            )}
+            renderThumb={({ props, index }) => (
+              <div
+                {...props}
+                onMouseDown={() =>
+                  setActiveThumb(index)
+                }
+                style={{
+                  ...props.style,
+                  width: '6px',
+                  height: '24px',
+                  borderRadius: '1px',
+                  backgroundColor: '#fff',
+                  border: '1px solid #000',
+                  cursor: 'grab'
+                }}
+              />
+            )}
+          />
+
+          <p>
+            Corte:
+            {formatDuration(clipStart)}
+            {' → '}
+            {formatDuration(clipEnd)}
+            {' ('}
+            {formatDuration(clipEnd - clipStart)}
+            {')'}
+          </p>
+        </div>
+      )}
+
 
       <input
         type="number"

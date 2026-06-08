@@ -60,7 +60,7 @@ export async function getVideoInfo(filePath: string): Promise<VideoInfo> {
 }
 
 export async function compressVideo(filePath: string, targetSizeMB: number, duration: number, width: number,
-  height: number , useTwoPass: boolean, codec: CompressionCodec, onProgress: (progress: number) => void): Promise<string> {
+  height: number , useTwoPass: boolean, codec: CompressionCodec, onProgress: (progress: number) => void, startTime?: number, endTime?: number): Promise<string> {
 
   if (useTwoPass) {
     return twoPassCompression({
@@ -70,7 +70,9 @@ export async function compressVideo(filePath: string, targetSizeMB: number, dura
       width,
       height,
       codec,
-      onProgress
+      onProgress,
+      startTime,
+      endTime
     })
 
   }
@@ -81,6 +83,8 @@ export async function compressVideo(filePath: string, targetSizeMB: number, dura
     width,
     height,
     codec,
-    onProgress
+    onProgress,
+    startTime,
+    endTime
   })
 }

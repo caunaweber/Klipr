@@ -23,36 +23,39 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
         width,
         height,
         codec,
+        startTime,
+        endTime
     } = options
 
-    const {
-        bitrateKbps,
-        audioBitrateKbps
-    } = calculateVideoBitrate(
-        targetSizeMB,
-        duration
-    )
+    const start = startTime ?? 0
+    const end = endTime ?? duration
+
+    const clipDuration = end - start
+
+    if (clipDuration <= 0) {
+        throw new Error('Invalid clip duration')
+    }
+
+    const isTrimmed =
+        start > 0 || end < duration
+
+    const trimArgs = isTrimmed
+        ? ['-ss', String(start), '-t', String(clipDuration)]
+        : []
+
+    const { bitrateKbps, audioBitrateKbps } = calculateVideoBitrate(targetSizeMB, clipDuration)
 
     const resolution = calculateResolution(width, height, bitrateKbps)
-
-    const parsedFile = path.parse(filePath)
 
     const outputPath = buildOutputPath(filePath, codec, targetSizeMB, true)
 
     const encoder = codec === 'h265' ? 'libx265' : 'libx264'
 
+    const parsedFile = path.parse(filePath)
     const passLogFile = path.join(
         parsedFile.dir,
         `${parsedFile.name}-passlog`
     )
-
-    console.log({
-        ffmpeg,
-        filePath,
-        targetSizeMB,
-        bitrateKbps,
-        outputPath
-    })
 
     console.log('Starting first pass...')
 
@@ -62,6 +65,9 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
 
         const pass1Process = spawn(ffmpeg, [
             '-y',
+
+            ...trimArgs,
+
             '-i',
             filePath,
 
@@ -122,7 +128,7 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
 
         attachProgressListener(
             pass1Process,
-            duration,
+            clipDuration,
             onProgress,
             0,
             50
@@ -156,6 +162,9 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
 
         const ffmpegProcess = spawn(ffmpeg, [
             '-y',
+
+            ...trimArgs,
+
             '-i',
             filePath,
 
@@ -220,7 +229,7 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
 
         attachProgressListener(
             ffmpegProcess,
-            duration,
+            clipDuration,
             onProgress,
             50,
             100

@@ -11,6 +11,9 @@ export interface CompressionOptions {
   width: number
   height: number
 
+  startTime?: number
+  endTime?: number
+
   codec: CompressionCodec
 
   onProgress: (progress: number) => void
