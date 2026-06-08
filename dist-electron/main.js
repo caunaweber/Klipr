@@ -6,15 +6,13 @@ import { spawn, execFile } from "child_process";
 import { promisify } from "util";
 import fs from "fs";
 function calculateVideoBitrate(targetSizeMB, duration, audioBitrateKbps = 128) {
+  const overheadFactor = 0.98;
+  const targetBits = targetSizeMB * 1024 * 1024 * 8 * overheadFactor;
   const audioBits = audioBitrateKbps * 1e3 * duration;
-  const targetBits = targetSizeMB * 1024 * 1024 * 8;
   const videoBits = targetBits - audioBits;
-  const videoBitrate = Math.floor(videoBits / duration);
-  const bitrateKbps = Math.floor(videoBitrate / 1e3);
+  const bitrateKbps = Math.round(videoBits / duration / 1e3);
   if (bitrateKbps < 100) {
-    throw new Error(
-      "Target size is too small for this video."
-    );
+    throw new Error("Target size is too small for this video.");
   }
   return {
     bitrateKbps,
@@ -51,6 +49,24 @@ function captureStderr(process2) {
   );
   return () => stderrOutput;
 }
+function calculateResolution(width, height, bitrateKbps) {
+  if (bitrateKbps < 700) {
+    return {
+      width: 854,
+      height: 480
+    };
+  }
+  if (bitrateKbps < 2e3) {
+    return {
+      width: 1280,
+      height: 720
+    };
+  }
+  return {
+    width,
+    height
+  };
+}
 const require$3 = createRequire(import.meta.url);
 const ffmpeg$1 = require$3("ffmpeg-static");
 async function onePassCompression(options) {
@@ -58,15 +74,15 @@ async function onePassCompression(options) {
     filePath,
     targetSizeMB,
     duration,
-    onProgress
+    onProgress,
+    width,
+    height
   } = options;
   const {
     bitrateKbps,
     audioBitrateKbps
-  } = calculateVideoBitrate(
-    targetSizeMB,
-    duration
-  );
+  } = calculateVideoBitrate(targetSizeMB, duration);
+  const resolution = calculateResolution(width, height, bitrateKbps);
   const parsedFile = path.parse(filePath);
   const outputPath = path.join(
     parsedFile.dir,
@@ -94,6 +110,8 @@ async function onePassCompression(options) {
         "aac",
         "-b:a",
         `${audioBitrateKbps}k`,
+        "-vf",
+        `scale=${resolution.width}:${resolution.height}`,
         "-progress",
         "pipe:1",
         outputPath
@@ -151,7 +169,9 @@ async function twoPassCompression(options) {
     filePath,
     targetSizeMB,
     duration,
-    onProgress
+    onProgress,
+    width,
+    height
   } = options;
   const {
     bitrateKbps,
@@ -160,6 +180,7 @@ async function twoPassCompression(options) {
     targetSizeMB,
     duration
   );
+  const resolution = calculateResolution(width, height, bitrateKbps);
   const parsedFile = path.parse(filePath);
   const outputPath = path.join(
     parsedFile.dir,
@@ -261,6 +282,8 @@ ${getStderr()}`
       "aac",
       "-b:a",
       `${audioBitrateKbps}k`,
+      "-vf",
+      `scale=${resolution.width}:${resolution.height}`,
       "-progress",
       "pipe:1",
       outputPath
@@ -369,12 +392,14 @@ async function getVideoInfo(filePath) {
     codec: videoStream.codec_name
   };
 }
-async function compressVideo(filePath, targetSizeMB, duration, useTwoPass, onProgress) {
+async function compressVideo(filePath, targetSizeMB, duration, width, height, useTwoPass, onProgress) {
   if (useTwoPass) {
     return twoPassCompression({
       filePath,
       targetSizeMB,
       duration,
+      width,
+      height,
       onProgress
     });
   }
@@ -382,6 +407,8 @@ async function compressVideo(filePath, targetSizeMB, duration, useTwoPass, onPro
     filePath,
     targetSizeMB,
     duration,
+    width,
+    height,
     onProgress
   });
 }
@@ -426,9 +453,9 @@ ipcMain.handle(
     }
   }
 );
-ipcMain.handle("compress-video", async (_, filePath, targetSizeMB, duration, useTwoPass) => {
+ipcMain.handle("compress-video", async (_, filePath, targetSizeMB, duration, width, height, useTwoPass) => {
   try {
-    return await compressVideo(filePath, targetSizeMB, duration, useTwoPass, (progress) => {
+    return await compressVideo(filePath, targetSizeMB, duration, width, height, useTwoPass, (progress) => {
       win == null ? void 0 : win.webContents.send(
         "compression-progress",
         progress

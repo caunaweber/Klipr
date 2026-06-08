@@ -30,7 +30,7 @@ interface Window {
 
     getVideoInfo: (filePath: string) => Promise<VideoInfo>
 
-    compressVideo: (filePath: string, targetSizeMB: number, duration: number, useTwoPass: boolean) => Promise<string>
+    compressVideo: (filePath: string, targetSizeMB: number, duration: number, width: number, height: number, useTwoPass: boolean) => Promise<string>
 
     onProgress: (callback: (progress: number) => void) => () => void
   }

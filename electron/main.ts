@@ -53,9 +53,9 @@ ipcMain.handle('get-video-info', async (_, filePath: string) => {
 }
 )
 
-ipcMain.handle('compress-video', async (_, filePath: string, targetSizeMB: number, duration: number, useTwoPass: boolean) => {
+ipcMain.handle('compress-video', async (_, filePath: string, targetSizeMB: number, duration: number, width: number, height: number, useTwoPass: boolean) => {
   try {
-    return await compressVideo(filePath, targetSizeMB, duration, useTwoPass, (progress) => {
+    return await compressVideo(filePath, targetSizeMB, duration, width, height, useTwoPass, (progress) => {
       win?.webContents.send(
         'compression-progress',
         progress

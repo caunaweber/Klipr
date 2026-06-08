@@ -5,6 +5,7 @@ import fs from 'fs'
 import path from 'node:path'
 import { calculateVideoBitrate } from '../../utils/bitrate.util'
 import { attachProgressListener, captureStderr } from '../../utils/ffmpeg.utils'
+import { calculateResolution } from '../../utils/resolution.util'
 
 
 const require = createRequire(import.meta.url)
@@ -17,7 +18,9 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
         filePath,
         targetSizeMB,
         duration,
-        onProgress
+        onProgress,
+        width,
+        height
     } = options
 
     const {
@@ -28,6 +31,8 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
         duration
     )
 
+    const resolution = calculateResolution(width, height, bitrateKbps)
+    
     const parsedFile = path.parse(filePath)
 
     const outputPath = path.join(
@@ -170,6 +175,9 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
 
             '-b:a',
             `${audioBitrateKbps}k`,
+
+            '-vf',
+            `scale=${resolution.width}:${resolution.height}`,
 
             '-progress',
             'pipe:1',

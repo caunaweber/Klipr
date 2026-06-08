@@ -4,6 +4,7 @@ import { spawn } from 'child_process'
 import path from 'node:path'
 import { calculateVideoBitrate } from '../../utils/bitrate.util'
 import { attachProgressListener, captureStderr } from '../../utils/ffmpeg.utils'
+import { calculateResolution } from '../../utils/resolution.util'
 
 const require = createRequire(import.meta.url)
 const ffmpeg = require('ffmpeg-static')
@@ -16,16 +17,17 @@ export async function onePassCompression(
         filePath,
         targetSizeMB,
         duration,
-        onProgress
+        onProgress,
+        width,
+        height
     } = options
 
     const {
         bitrateKbps,
         audioBitrateKbps
-    } = calculateVideoBitrate(
-        targetSizeMB,
-        duration
-    )
+    } = calculateVideoBitrate(targetSizeMB, duration)
+
+    const resolution = calculateResolution(width, height, bitrateKbps)
 
     const parsedFile = path.parse(filePath)
 
@@ -62,6 +64,9 @@ export async function onePassCompression(
 
                 '-b:a',
                 `${audioBitrateKbps}k`,
+
+                '-vf',
+                `scale=${resolution.width}:${resolution.height}`,
 
                 '-progress',
                 'pipe:1',

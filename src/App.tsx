@@ -58,6 +58,8 @@ function App() {
           videoInfo.filePath,
           Number(targetSizeMB),
           videoInfo.duration,
+          videoInfo.width,
+          videoInfo.height,
           useTwoPass
         )
 
@@ -148,7 +150,8 @@ function App() {
         onClick={compressVideo}
         disabled={
           !videoInfo ||
-          isCompressing
+          isCompressing || 
+          Number(targetSizeMB) >= videoInfo.sizeMB
         }
       >
         {
