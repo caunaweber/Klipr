@@ -8,6 +8,7 @@ import { VideoInfo } from '../types/video'
 import { onePassCompression } from './compression/one-pass.compression'
 import { twoPassCompression } from './compression/two-pass.compression'
 import { CompressionCodec} from '../types/compression'
+import { validateCompressionParameters } from '../utils/compression-validation.utils'
 
 
 const execFileAsync = promisify(execFile)
@@ -62,6 +63,17 @@ export async function getVideoInfo(filePath: string): Promise<VideoInfo> {
 export async function compressVideo(filePath: string, targetSizeMB: number, duration: number, width: number,
   height: number , useTwoPass: boolean, codec: CompressionCodec, onProgress: (progress: number) => void, startTime?: number, endTime?: number): Promise<string> {
 
+  const resolvedStartTime = startTime ?? 0
+  const resolvedEndTime = endTime ?? duration
+
+  validateCompressionParameters({
+    targetSizeMB,
+    startTime: resolvedStartTime,
+    endTime: resolvedEndTime,
+    width,
+    height
+  })
+
   if (useTwoPass) {
     return twoPassCompression({
       filePath,
@@ -71,8 +83,8 @@ export async function compressVideo(filePath: string, targetSizeMB: number, dura
       height,
       codec,
       onProgress,
-      startTime,
-      endTime
+      startTime: resolvedStartTime,
+      endTime: resolvedEndTime
     })
 
   }
@@ -84,7 +96,7 @@ export async function compressVideo(filePath: string, targetSizeMB: number, dura
     height,
     codec,
     onProgress,
-    startTime,
-    endTime
+    startTime: resolvedStartTime,
+    endTime: resolvedEndTime
   })
 }

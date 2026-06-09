@@ -41,15 +41,24 @@ function attachProgressListener(process2, duration, onProgress, startPercent, en
     }
   );
 }
+const MAX_STDERR_CHARS = 16384;
 function captureStderr(process2) {
   let stderrOutput = "";
+  let truncated = false;
   process2.stderr.on(
     "data",
     (data) => {
       stderrOutput += data.toString();
+      if (stderrOutput.length > MAX_STDERR_CHARS) {
+        stderrOutput = stderrOutput.slice(
+          -MAX_STDERR_CHARS
+        );
+        truncated = true;
+      }
     }
   );
-  return () => stderrOutput;
+  return () => truncated ? `... stderr truncated to last ${MAX_STDERR_CHARS} chars
+${stderrOutput}` : stderrOutput;
 }
 function calculateResolution(width, height, bitrateKbps) {
   if (bitrateKbps < 700 && height > 480) {
@@ -78,6 +87,67 @@ function buildOutputPath(filePath, codec, targetSizeMB, useTwoPass) {
     parsedFile.dir,
     `${parsedFile.name}-${codecName}-${passMode}-${sizeLabel}MB-compressed.mp4`
   );
+}
+const activeFfmpegProcesses = /* @__PURE__ */ new Set();
+const PROCESS_TERMINATION_TIMEOUT_MS = 3e3;
+function registerFfmpegProcess(process2) {
+  activeFfmpegProcesses.add(process2);
+  const cleanup = () => {
+    activeFfmpegProcesses.delete(process2);
+  };
+  process2.once("exit", cleanup);
+  process2.once("close", cleanup);
+  process2.once("error", cleanup);
+  return () => {
+    cleanup();
+    process2.removeListener("exit", cleanup);
+    process2.removeListener("close", cleanup);
+    process2.removeListener("error", cleanup);
+  };
+}
+async function terminateAllFfmpegProcesses() {
+  const processes = Array.from(activeFfmpegProcesses);
+  await Promise.allSettled(
+    processes.map(
+      (process2) => terminateFfmpegProcess(
+        process2,
+        PROCESS_TERMINATION_TIMEOUT_MS
+      )
+    )
+  );
+}
+async function terminateFfmpegProcess(process2, timeoutMs) {
+  if (process2.exitCode !== null || process2.signalCode !== null) {
+    activeFfmpegProcesses.delete(process2);
+    return;
+  }
+  await new Promise((resolve) => {
+    let settled = false;
+    let timer;
+    const cleanup = () => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      if (timer) {
+        clearTimeout(timer);
+      }
+      process2.removeListener("exit", cleanup);
+      process2.removeListener("close", cleanup);
+      process2.removeListener("error", cleanup);
+      activeFfmpegProcesses.delete(process2);
+      resolve();
+    };
+    timer = setTimeout(cleanup, timeoutMs);
+    process2.once("exit", cleanup);
+    process2.once("close", cleanup);
+    process2.once("error", cleanup);
+    try {
+      process2.kill();
+    } catch {
+      cleanup();
+    }
+  });
 }
 const require$3 = createRequire(import.meta.url);
 const ffmpeg$1 = require$3("ffmpeg-static");
@@ -130,6 +200,7 @@ async function onePassCompression(options) {
         outputPath
       ]
     );
+    const unregisterFfmpegProcess = registerFfmpegProcess(ffmpegProcess);
     console.log("FFmpeg process created");
     let finished = false;
     ffmpegProcess.on(
@@ -137,6 +208,7 @@ async function onePassCompression(options) {
       (error) => {
         if (finished) return;
         finished = true;
+        unregisterFfmpegProcess();
         console.error(
           "FFmpeg process error:",
           error
@@ -155,6 +227,7 @@ async function onePassCompression(options) {
     ffmpegProcess.on("close", (code) => {
       if (finished) return;
       finished = true;
+      unregisterFfmpegProcess();
       console.log(
         `FFmpeg closed with code ${code}`
       );
@@ -185,35 +258,33 @@ async function twoPassCompression(options) {
     onProgress,
     width,
     height,
-    codec
+    codec,
+    startTime,
+    endTime
   } = options;
-  const {
-    bitrateKbps,
-    audioBitrateKbps
-  } = calculateVideoBitrate(
-    targetSizeMB,
-    duration
-  );
+  const start = startTime ?? 0;
+  const end = endTime ?? duration;
+  const clipDuration = end - start;
+  if (clipDuration <= 0) {
+    throw new Error("Invalid clip duration");
+  }
+  const isTrimmed = start > 0 || end < duration;
+  const trimArgs = isTrimmed ? ["-ss", String(start), "-t", String(clipDuration)] : [];
+  const { bitrateKbps, audioBitrateKbps } = calculateVideoBitrate(targetSizeMB, clipDuration);
   const resolution = calculateResolution(width, height, bitrateKbps);
-  const parsedFile = path.parse(filePath);
   const outputPath = buildOutputPath(filePath, codec, targetSizeMB, true);
   const encoder = codec === "h265" ? "libx265" : "libx264";
+  const parsedFile = path.parse(filePath);
   const passLogFile = path.join(
     parsedFile.dir,
     `${parsedFile.name}-passlog`
   );
-  console.log({
-    ffmpeg,
-    filePath,
-    targetSizeMB,
-    bitrateKbps,
-    outputPath
-  });
   console.log("Starting first pass...");
   cleanupPassLogs(passLogFile);
   await new Promise((resolve, reject) => {
     const pass1Process = spawn(ffmpeg, [
       "-y",
+      ...trimArgs,
       "-i",
       filePath,
       "-fps_mode",
@@ -235,12 +306,14 @@ async function twoPassCompression(options) {
       "null",
       process.platform === "win32" ? "NUL" : "/dev/null"
     ]);
+    const unregisterPass1Process = registerFfmpegProcess(pass1Process);
     let finished = false;
     pass1Process.on(
       "error",
       (error) => {
         if (finished) return;
         finished = true;
+        unregisterPass1Process();
         console.error(
           "First pass process error:",
           error
@@ -252,7 +325,7 @@ async function twoPassCompression(options) {
     const getStderr = captureStderr(pass1Process);
     attachProgressListener(
       pass1Process,
-      duration,
+      clipDuration,
       onProgress,
       0,
       50
@@ -262,6 +335,7 @@ async function twoPassCompression(options) {
       (code) => {
         if (finished) return;
         finished = true;
+        unregisterPass1Process();
         if (code === 0) {
           onProgress(50);
           resolve();
@@ -280,6 +354,7 @@ ${getStderr()}`
   return new Promise((resolve, reject) => {
     const ffmpegProcess = spawn(ffmpeg, [
       "-y",
+      ...trimArgs,
       "-i",
       filePath,
       "-fps_mode",
@@ -304,6 +379,7 @@ ${getStderr()}`
       "pipe:1",
       outputPath
     ]);
+    const unregisterFfmpegProcess = registerFfmpegProcess(ffmpegProcess);
     console.log("FFmpeg process created");
     let finished = false;
     ffmpegProcess.on(
@@ -311,6 +387,7 @@ ${getStderr()}`
       (error) => {
         if (finished) return;
         finished = true;
+        unregisterFfmpegProcess();
         console.error(
           "FFmpeg process error:",
           error
@@ -322,7 +399,7 @@ ${getStderr()}`
     const getStderr = captureStderr(ffmpegProcess);
     attachProgressListener(
       ffmpegProcess,
-      duration,
+      clipDuration,
       onProgress,
       50,
       100
@@ -330,6 +407,7 @@ ${getStderr()}`
     ffmpegProcess.on("close", (code) => {
       if (finished) return;
       finished = true;
+      unregisterFfmpegProcess();
       console.log(
         `FFmpeg closed with code ${code}`
       );
@@ -363,6 +441,29 @@ function cleanupPassLogs(passLogFile) {
       `${passLogFile}-0.log.mbtree`
     );
   } catch {
+  }
+}
+function validateCompressionParameters(input) {
+  const errors = [];
+  if (!Number.isFinite(input.targetSizeMB) || input.targetSizeMB <= 0) {
+    errors.push("targetSizeMB must be greater than 0");
+  }
+  if (!Number.isFinite(input.startTime) || input.startTime < 0) {
+    errors.push("startTime must be greater than or equal to 0");
+  }
+  if (!Number.isFinite(input.endTime) || input.endTime <= input.startTime) {
+    errors.push("endTime must be greater than startTime");
+  }
+  if (!Number.isFinite(input.width) || input.width <= 0) {
+    errors.push("width must be greater than 0");
+  }
+  if (!Number.isFinite(input.height) || input.height <= 0) {
+    errors.push("height must be greater than 0");
+  }
+  if (errors.length > 0) {
+    throw new Error(
+      `Invalid compression parameters: ${errors.join("; ")}`
+    );
   }
 }
 const execFileAsync = promisify(execFile);
@@ -409,6 +510,15 @@ async function getVideoInfo(filePath) {
   };
 }
 async function compressVideo(filePath, targetSizeMB, duration, width, height, useTwoPass, codec, onProgress, startTime, endTime) {
+  const resolvedStartTime = startTime ?? 0;
+  const resolvedEndTime = endTime ?? duration;
+  validateCompressionParameters({
+    targetSizeMB,
+    startTime: resolvedStartTime,
+    endTime: resolvedEndTime,
+    width,
+    height
+  });
   if (useTwoPass) {
     return twoPassCompression({
       filePath,
@@ -417,7 +527,9 @@ async function compressVideo(filePath, targetSizeMB, duration, width, height, us
       width,
       height,
       codec,
-      onProgress
+      onProgress,
+      startTime: resolvedStartTime,
+      endTime: resolvedEndTime
     });
   }
   return onePassCompression({
@@ -428,8 +540,8 @@ async function compressVideo(filePath, targetSizeMB, duration, width, height, us
     height,
     codec,
     onProgress,
-    startTime,
-    endTime
+    startTime: resolvedStartTime,
+    endTime: resolvedEndTime
   });
 }
 function getDefaultExportFromCjs(x) {
@@ -11243,6 +11355,7 @@ const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
 const RENDERER_DIST = path.join(process.env.APP_ROOT, "dist");
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, "public") : RENDERER_DIST;
 let win;
+let isShuttingDown = false;
 function createWindow() {
   win = new BrowserWindow({
     webPreferences: {
@@ -11265,6 +11378,17 @@ app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
   }
+});
+app.on("before-quit", (event) => {
+  if (isShuttingDown) {
+    return;
+  }
+  event.preventDefault();
+  isShuttingDown = true;
+  void (async () => {
+    await terminateAllFfmpegProcesses();
+    app.quit();
+  })();
 });
 ipcMain.handle("select-video", selectVideo);
 ipcMain.handle(
@@ -11289,10 +11413,12 @@ ipcMain.handle("compress-video", async (_, filePath, targetSizeMB, duration, wid
       useTwoPass,
       codec,
       (progress) => {
-        win == null ? void 0 : win.webContents.send(
-          "compression-progress",
-          progress
-        );
+        if (win && !win.isDestroyed()) {
+          win.webContents.send(
+            "compression-progress",
+            progress
+          );
+        }
       },
       startTime,
       endTime

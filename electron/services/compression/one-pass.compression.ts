@@ -1,10 +1,11 @@
 import { CompressionOptions } from '../../types/compression'
 import { createRequire } from 'node:module'
 import { spawn } from 'child_process'
-import { calculateVideoBitrate } from '../../utils/bitrate.util'
+import { calculateVideoBitrate } from '../../utils/bitrate.utils'
 import { attachProgressListener, captureStderr } from '../../utils/ffmpeg.utils'
-import { calculateResolution } from '../../utils/resolution.util'
+import { calculateResolution } from '../../utils/resolution.utils'
 import { buildOutputPath } from '../../utils/file.utils'
+import { registerFfmpegProcess } from '../../utils/process-registry.utils'
 
 const require = createRequire(import.meta.url)
 const ffmpeg = require('ffmpeg-static')
@@ -84,6 +85,9 @@ export async function onePassCompression(options: CompressionOptions): Promise<s
             ]
         )
 
+        const unregisterFfmpegProcess =
+            registerFfmpegProcess(ffmpegProcess)
+
         console.log('FFmpeg process created')
 
         let finished = false
@@ -95,6 +99,7 @@ export async function onePassCompression(options: CompressionOptions): Promise<s
                 if (finished) return
 
                 finished = true
+                unregisterFfmpegProcess()
 
                 console.error(
                     'FFmpeg process error:',
@@ -121,6 +126,7 @@ export async function onePassCompression(options: CompressionOptions): Promise<s
             if (finished) return
 
             finished = true
+            unregisterFfmpegProcess()
 
             console.log(
                 `FFmpeg closed with code ${code}`

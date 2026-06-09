@@ -6,6 +6,7 @@ import { CompressionCodec } from './types/compression'
 import { protocol } from 'electron'
 import mime from 'mime-types'
 import fs from 'node:fs'
+import { terminateAllFfmpegProcesses } from './utils/process-registry.utils'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -17,6 +18,7 @@ export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST
 
 let win: BrowserWindow | null
+let isShuttingDown = false
 
 function createWindow() {
   win = new BrowserWindow({
@@ -45,6 +47,20 @@ app.on('activate', () => {
   }
 })
 
+app.on('before-quit', (event) => {
+  if (isShuttingDown) {
+    return
+  }
+
+  event.preventDefault()
+  isShuttingDown = true
+
+  void (async () => {
+    await terminateAllFfmpegProcesses()
+    app.quit()
+  })()
+})
+
 ipcMain.handle('select-video', selectVideo)
 
 ipcMain.handle('get-video-info', async (_, filePath: string) => {
@@ -68,9 +84,11 @@ ipcMain.handle('compress-video', async (_, filePath: string, targetSizeMB: numbe
       useTwoPass,
       codec,
       (progress) => {
-        win?.webContents.send(
-          'compression-progress',
-          progress)
+        if (win && !win.isDestroyed()) {
+          win.webContents.send(
+            'compression-progress',
+            progress)
+        }
       },
       startTime,
       endTime,)

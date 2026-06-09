@@ -3,10 +3,11 @@ import { createRequire } from 'node:module'
 import { spawn } from 'child_process'
 import fs from 'fs'
 import path from 'node:path'
-import { calculateVideoBitrate } from '../../utils/bitrate.util'
+import { calculateVideoBitrate } from '../../utils/bitrate.utils'
 import { attachProgressListener, captureStderr } from '../../utils/ffmpeg.utils'
-import { calculateResolution } from '../../utils/resolution.util'
+import { calculateResolution } from '../../utils/resolution.utils'
 import { buildOutputPath } from '../../utils/file.utils'
+import { registerFfmpegProcess } from '../../utils/process-registry.utils'
 
 
 const require = createRequire(import.meta.url)
@@ -102,6 +103,9 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
                 : '/dev/null'
         ])
 
+        const unregisterPass1Process =
+            registerFfmpegProcess(pass1Process)
+
         let finished = false
 
         pass1Process.on(
@@ -111,6 +115,7 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
                 if (finished) return
 
                 finished = true
+                unregisterPass1Process()
 
                 console.error(
                     'First pass process error:',
@@ -141,6 +146,7 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
                 if (finished) return
 
                 finished = true
+                unregisterPass1Process()
 
                 if (code === 0) {
                     onProgress(50)
@@ -201,6 +207,9 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
             outputPath
         ])
 
+        const unregisterFfmpegProcess =
+            registerFfmpegProcess(ffmpegProcess)
+
         console.log('FFmpeg process created')
 
         let finished = false
@@ -212,6 +221,7 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
                 if (finished) return
 
                 finished = true
+                unregisterFfmpegProcess()
 
                 console.error(
                     'FFmpeg process error:',
@@ -240,6 +250,7 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
             if (finished) return
 
             finished = true
+            unregisterFfmpegProcess()
 
             console.log(
                 `FFmpeg closed with code ${code}`

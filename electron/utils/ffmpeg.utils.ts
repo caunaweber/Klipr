@@ -39,17 +39,31 @@ export function attachProgressListener(
     )
 }
 
+const MAX_STDERR_CHARS = 16_384
+
 export function captureStderr(
     process: ChildProcessWithoutNullStreams
 ) {
     let stderrOutput = ''
+    let truncated = false
 
     process.stderr.on(
         'data',
         (data) => {
             stderrOutput += data.toString()
+
+            if (stderrOutput.length > MAX_STDERR_CHARS) {
+                stderrOutput =
+                    stderrOutput.slice(
+                        -MAX_STDERR_CHARS
+                    )
+                truncated = true
+            }
         }
     )
 
-    return () => stderrOutput
+    return () =>
+        truncated
+            ? `... stderr truncated to last ${MAX_STDERR_CHARS} chars\n${stderrOutput}`
+            : stderrOutput
 }
