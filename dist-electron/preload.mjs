@@ -2,21 +2,9 @@
 const electron = require("electron");
 electron.contextBridge.exposeInMainWorld("videoCompressor", {
   selectVideo: () => electron.ipcRenderer.invoke("select-video"),
-  getVideoInfo: (filePath) => electron.ipcRenderer.invoke("get-video-info", filePath),
-  compressVideo: (filePath, targetSizeMB, duration, width, height, useTwoPass, codec, startTime, endTime) => electron.ipcRenderer.invoke(
-    "compress-video",
-    filePath,
-    targetSizeMB,
-    duration,
-    width,
-    height,
-    useTwoPass,
-    codec,
-    startTime,
-    endTime
-  ),
+  compressVideo: (request) => electron.ipcRenderer.invoke("compress-video", request),
   cancelCompression: () => electron.ipcRenderer.invoke("cancel-compression"),
-  openResultFolder: (filePath) => electron.ipcRenderer.invoke("open-result-folder", filePath),
+  openResultFolder: (outputId) => electron.ipcRenderer.invoke("open-result-folder", outputId),
   onProgress: (callback) => {
     const listener = (_, progress) => {
       callback(progress);

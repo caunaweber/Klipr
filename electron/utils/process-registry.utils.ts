@@ -92,7 +92,6 @@ async function terminateFfmpegProcess(
 
   await new Promise<void>((resolve) => {
     let settled = false
-    let timer: ReturnType<typeof setTimeout> | undefined
 
     const cleanup = () => {
       if (settled) {
@@ -109,7 +108,7 @@ async function terminateFfmpegProcess(
       resolve()
     }
 
-    timer = setTimeout(cleanup, timeoutMs)
+    const timer = setTimeout(cleanup, timeoutMs)
   })
 }
 

@@ -6,8 +6,10 @@ import { spawn, execFile } from "child_process";
 import { promisify } from "util";
 import fs$1 from "fs";
 import fs from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import require$$1 from "path";
 import fs$2 from "node:fs";
+import { Readable } from "node:stream";
 function calculateVideoBitrate(targetSizeMB, duration, audioBitrateKbps = 96) {
   const overheadFactor = 0.98;
   const targetBits = targetSizeMB * 1024 * 1024 * 8 * overheadFactor;
@@ -157,7 +159,6 @@ async function terminateFfmpegProcess(control, timeoutMs) {
   }
   await new Promise((resolve) => {
     let settled = false;
-    let timer;
     const cleanup = () => {
       if (settled) {
         return;
@@ -169,7 +170,7 @@ async function terminateFfmpegProcess(control, timeoutMs) {
       control.unregister();
       resolve();
     };
-    timer = setTimeout(cleanup, timeoutMs);
+    const timer = setTimeout(cleanup, timeoutMs);
   });
 }
 function createCompressionCancelledError() {
@@ -492,14 +493,26 @@ function cleanupPassLogs(passLogFile) {
 }
 function validateCompressionParameters(input) {
   const errors = [];
+  if (!isSupportedCompressionCodec(input.codec)) {
+    errors.push("codec must be h264 or h265");
+  }
   if (!Number.isFinite(input.targetSizeMB) || input.targetSizeMB <= 0) {
     errors.push("targetSizeMB must be greater than 0");
+  }
+  if (Number.isFinite(input.targetSizeMB) && Number.isFinite(input.sourceSizeMB) && input.targetSizeMB >= input.sourceSizeMB) {
+    errors.push("targetSizeMB must be smaller than the source file size");
+  }
+  if (!Number.isFinite(input.duration) || input.duration <= 0) {
+    errors.push("duration must be greater than 0");
   }
   if (!Number.isFinite(input.startTime) || input.startTime < 0) {
     errors.push("startTime must be greater than or equal to 0");
   }
   if (!Number.isFinite(input.endTime) || input.endTime <= input.startTime) {
     errors.push("endTime must be greater than startTime");
+  }
+  if (Number.isFinite(input.endTime) && Number.isFinite(input.duration) && input.endTime > input.duration) {
+    errors.push("endTime must be smaller than or equal to duration");
   }
   if (!Number.isFinite(input.width) || input.width <= 0) {
     errors.push("width must be greater than 0");
@@ -512,6 +525,28 @@ function validateCompressionParameters(input) {
       `Invalid compression parameters: ${errors.join("; ")}`
     );
   }
+}
+function isSupportedCompressionCodec(codec) {
+  return codec === "h264" || codec === "h265";
+}
+const selectedVideos = /* @__PURE__ */ new Map();
+function registerSelectedVideo(filePath) {
+  selectedVideos.clear();
+  const id = randomUUID();
+  selectedVideos.set(id, filePath);
+  return id;
+}
+function getSelectedVideoPath(id) {
+  return selectedVideos.get(id) ?? null;
+}
+const generatedOutputs = /* @__PURE__ */ new Map();
+function registerGeneratedOutput(filePath) {
+  const id = randomUUID();
+  generatedOutputs.set(id, filePath);
+  return id;
+}
+function getGeneratedOutputPath(id) {
+  return generatedOutputs.get(id) ?? null;
 }
 const execFileAsync = promisify(execFile);
 const require$1 = createRequire(import.meta.url);
@@ -526,9 +561,11 @@ async function selectVideo() {
   if (result.canceled) {
     return null;
   }
-  return result.filePaths[0];
+  const filePath = result.filePaths[0];
+  const id = registerSelectedVideo(filePath);
+  return getVideoInfo(filePath, id);
 }
-async function getVideoInfo(filePath) {
+async function getVideoInfo(filePath, id) {
   const stats = fs$1.statSync(filePath);
   const { stdout } = await execFileAsync(
     ffprobe.path,
@@ -546,9 +583,13 @@ async function getVideoInfo(filePath) {
   const videoStream = data.streams.find(
     (stream) => stream.codec_type === "video"
   );
+  if (!videoStream || !videoStream.width || !videoStream.height || !videoStream.codec_name || !data.format.duration) {
+    throw new Error("Selected file does not contain valid video metadata");
+  }
   return {
+    id,
     fileName: path.basename(filePath),
-    filePath,
+    videoUrl: `video://${id}`,
     sizeMB: Number((stats.size / (1024 * 1024)).toFixed(2)),
     duration: Number(data.format.duration),
     width: videoStream.width,
@@ -556,40 +597,49 @@ async function getVideoInfo(filePath) {
     codec: videoStream.codec_name
   };
 }
-async function compressVideo(filePath, targetSizeMB, duration, width, height, useTwoPass, codec, onProgress, startTime, endTime) {
-  const resolvedStartTime = startTime ?? 0;
-  const resolvedEndTime = endTime ?? duration;
+async function compressVideo(request, onProgress) {
+  const filePath = getSelectedVideoPath(request.videoId);
+  if (!filePath) {
+    throw new Error("Video not authorized");
+  }
+  const videoInfo = await getVideoInfo(filePath, request.videoId);
+  const resolvedStartTime = request.startTime ?? 0;
+  const resolvedEndTime = request.endTime ?? videoInfo.duration;
   validateCompressionParameters({
-    targetSizeMB,
+    codec: request.codec,
+    targetSizeMB: request.targetSizeMB,
+    sourceSizeMB: videoInfo.sizeMB,
+    duration: videoInfo.duration,
     startTime: resolvedStartTime,
     endTime: resolvedEndTime,
-    width,
-    height
+    width: videoInfo.width,
+    height: videoInfo.height
   });
-  if (useTwoPass) {
-    return twoPassCompression({
-      filePath,
-      targetSizeMB,
-      duration,
-      width,
-      height,
-      codec,
-      onProgress,
-      startTime: resolvedStartTime,
-      endTime: resolvedEndTime
-    });
-  }
-  return onePassCompression({
+  const outputPath = request.useTwoPass ? await twoPassCompression({
     filePath,
-    targetSizeMB,
-    duration,
-    width,
-    height,
-    codec,
+    targetSizeMB: request.targetSizeMB,
+    duration: videoInfo.duration,
+    width: videoInfo.width,
+    height: videoInfo.height,
+    codec: request.codec,
+    onProgress,
+    startTime: resolvedStartTime,
+    endTime: resolvedEndTime
+  }) : await onePassCompression({
+    filePath,
+    targetSizeMB: request.targetSizeMB,
+    duration: videoInfo.duration,
+    width: videoInfo.width,
+    height: videoInfo.height,
+    codec: request.codec,
     onProgress,
     startTime: resolvedStartTime,
     endTime: resolvedEndTime
   });
+  return {
+    outputId: registerGeneratedOutput(outputPath),
+    outputPath
+  };
 }
 function getDefaultExportFromCjs(x) {
   return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, "default") ? x["default"] : x;
@@ -11403,6 +11453,22 @@ const RENDERER_DIST = path.join(process.env.APP_ROOT, "dist");
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, "public") : RENDERER_DIST;
 let win;
 let isShuttingDown = false;
+let isCompressionActive = false;
+function parseRangeHeader(range, fileSize) {
+  const match = range.match(/^bytes=(\d+)-(\d*)$/);
+  if (!match) {
+    return null;
+  }
+  const start = Number(match[1]);
+  const end = match[2] ? Number(match[2]) : fileSize - 1;
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start || start >= fileSize || end >= fileSize) {
+    return null;
+  }
+  return {
+    start,
+    end
+  };
+}
 function createWindow() {
   win = new BrowserWindow({
     width: 1200,
@@ -11443,27 +11509,14 @@ app.on("before-quit", (event) => {
   })();
 });
 ipcMain.handle("select-video", selectVideo);
-ipcMain.handle(
-  "get-video-info",
-  async (_, filePath) => {
-    try {
-      return await getVideoInfo(filePath);
-    } catch (error) {
-      console.error(error);
-      throw error;
-    }
+ipcMain.handle("compress-video", async (_, request) => {
+  if (isCompressionActive) {
+    throw new Error("A compression is already active");
   }
-);
-ipcMain.handle("compress-video", async (_, filePath, targetSizeMB, duration, width, height, useTwoPass, codec, startTime, endTime) => {
+  isCompressionActive = true;
   try {
     return await compressVideo(
-      filePath,
-      targetSizeMB,
-      duration,
-      width,
-      height,
-      useTwoPass,
-      codec,
+      request,
       (progress) => {
         if (win && !win.isDestroyed()) {
           win.webContents.send(
@@ -11471,20 +11524,24 @@ ipcMain.handle("compress-video", async (_, filePath, targetSizeMB, duration, wid
             progress
           );
         }
-      },
-      startTime,
-      endTime
+      }
     );
   } catch (error) {
     console.error(error);
     throw error;
+  } finally {
+    isCompressionActive = false;
   }
 });
 ipcMain.handle("cancel-compression", async () => {
   await terminateAllFfmpegProcesses();
 });
-ipcMain.handle("open-result-folder", async (_, filePath) => {
-  shell.showItemInFolder(filePath);
+ipcMain.handle("open-result-folder", async (_, outputId) => {
+  const outputPath = getGeneratedOutputPath(outputId);
+  if (!outputPath) {
+    throw new Error("Output file not authorized");
+  }
+  shell.showItemInFolder(outputPath);
 });
 app.whenReady().then(() => {
   protocol.handle(
@@ -11492,11 +11549,20 @@ app.whenReady().then(() => {
     async (request) => {
       var _a;
       try {
-        const filePath = decodeURIComponent(
+        const videoId = decodeURIComponent(
           request.url.slice(
             "video://".length
           )
         );
+        const filePath = getSelectedVideoPath(videoId);
+        if (!filePath) {
+          return new Response(
+            "Video not authorized",
+            {
+              status: 403
+            }
+          );
+        }
         const stat = await fs$2.promises.stat(
           filePath
         );
@@ -11505,8 +11571,10 @@ app.whenReady().then(() => {
         );
         const contentType = ((_a = mime.lookup(filePath)) == null ? void 0 : _a.toString()) || "application/octet-stream";
         if (!range) {
-          const stream2 = fs$2.createReadStream(
-            filePath
+          const stream2 = Readable.toWeb(
+            fs$2.createReadStream(
+              filePath
+            )
           );
           return new Response(
             stream2,
@@ -11519,12 +11587,11 @@ app.whenReady().then(() => {
             }
           );
         }
-        const parts = range.replace(
-          /bytes=/,
-          ""
-        ).split("-");
-        const start = Number(parts[0]);
-        if (Number.isNaN(start)) {
+        const parsedRange = parseRangeHeader(
+          range,
+          stat.size
+        );
+        if (!parsedRange) {
           return new Response(
             "Invalid range",
             {
@@ -11532,14 +11599,16 @@ app.whenReady().then(() => {
             }
           );
         }
-        const end = parts[1] ? Number(parts[1]) : stat.size - 1;
+        const { start, end } = parsedRange;
         const chunkSize = end - start + 1;
-        const stream = fs$2.createReadStream(
-          filePath,
-          {
-            start,
-            end
-          }
+        const stream = Readable.toWeb(
+          fs$2.createReadStream(
+            filePath,
+            {
+              start,
+              end
+            }
+          )
         );
         return new Response(
           stream,

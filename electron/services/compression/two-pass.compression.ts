@@ -307,11 +307,15 @@ function cleanupPassLogs(
         fs.unlinkSync(
             `${passLogFile}-0.log`
         )
-    } catch { }
+    } catch {
+        // Pass logs are best-effort cleanup artifacts.
+    }
 
     try {
         fs.unlinkSync(
             `${passLogFile}-0.log.mbtree`
         )
-    } catch { }
+    } catch {
+        // Pass logs are best-effort cleanup artifacts.
+    }
 }

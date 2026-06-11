@@ -26,19 +26,18 @@ interface Window {
   ipcRenderer: import('electron').IpcRenderer
 
   videoCompressor: {
-    selectVideo: () => Promise<string | null>
+    selectVideo: () => Promise<VideoInfo | null>
 
-    getVideoInfo: (filePath: string) => Promise<VideoInfo>
-
-    compressVideo: (filePath: string, targetSizeMB: number, duration: number, width: number, height: number,
-      useTwoPass: boolean, codec: CompressionCodec, startTime?: number, endTime?: number) => Promise<string>
+    compressVideo: (
+      request: import('./types/compression').CompressionRequest
+    ) => Promise<import('./types/compression').CompressionResult>
 
     onProgress: (callback: (progress: number) => void) => () => void
 
     cancelCompression: () => Promise<void>
 
-    openResultFolder: (filePath: string) => Promise<void>
-    
+    openResultFolder: (outputId: string) => Promise<void>
+
   }
 
 }

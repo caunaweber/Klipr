@@ -6,7 +6,6 @@ import { useRef } from 'react'
 
 function App() {
   const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null)
-  const [compressedPath, setCompressedPath] = useState('')
   const [targetSizeMB, setTargetSizeMB] = useState<string>('10')
   const [progress, setProgress] = useState(0)
   const [useTwoPass, setUseTwoPass] = useState(false)
@@ -16,19 +15,19 @@ function App() {
   const [clipEnd, setClipEnd] = useState(0)
   const [activeThumb, setActiveThumb] = useState<number>(0)
 
+  const [compressionResult, setCompressionResult] =
+    useState<import('../electron/types/compression').CompressionResult | null>(null)
+
   const videoRef = useRef<HTMLVideoElement>(null)
 
   const selectVideo = async () => {
-    const path =
+    const info =
       await window.videoCompressor.selectVideo()
 
-    if (!path) {
+    if (!info) {
       setVideoInfo(null)
       return
     }
-
-    const info =
-      await window.videoCompressor.getVideoInfo(path)
 
     setVideoInfo(info)
 
@@ -68,23 +67,19 @@ function App() {
     try {
 
       setProgress(0)
-      setCompressedPath('')
+      setCompressionResult(null)
 
-      const outputPath =
-        await window.videoCompressor.compressVideo(
-          videoInfo.filePath,
-          Number(targetSizeMB),
-          videoInfo.duration,
-          videoInfo.width,
-          videoInfo.height,
+      const result =
+        await window.videoCompressor.compressVideo({
+          videoId: videoInfo.id,
+          targetSizeMB: Number(targetSizeMB),
           useTwoPass,
           codec,
-          clipStart,
-          clipEnd,
-        )
+          startTime: clipStart,
+          endTime: clipEnd
+        })
 
-      setCompressedPath(outputPath)
-
+      setCompressionResult(result)
     } catch (error) {
 
       console.error(error)
@@ -178,7 +173,7 @@ function App() {
         <>
           <video
             ref={videoRef}
-            src={`video://${encodeURIComponent(videoInfo.filePath)}`}
+            src={videoInfo.videoUrl}
             controls
             width={400}
             onLoadedMetadata={() =>
@@ -305,10 +300,10 @@ function App() {
         max={100}
       />
 
-      {compressedPath && (
+      {compressionResult && (
         <p>
           Vídeo salvo em:
-          {compressedPath}
+          {compressionResult.outputPath}
         </p>
       )}
 
