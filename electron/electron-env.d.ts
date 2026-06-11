@@ -34,6 +34,11 @@ interface Window {
       useTwoPass: boolean, codec: CompressionCodec, startTime?: number, endTime?: number) => Promise<string>
 
     onProgress: (callback: (progress: number) => void) => () => void
+
+    cancelCompression: () => Promise<void>
+
+    openResultFolder: (filePath: string) => Promise<void>
+    
   }
 
 }

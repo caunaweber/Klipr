@@ -15,6 +15,8 @@ electron.contextBridge.exposeInMainWorld("videoCompressor", {
     startTime,
     endTime
   ),
+  cancelCompression: () => electron.ipcRenderer.invoke("cancel-compression"),
+  openResultFolder: (filePath) => electron.ipcRenderer.invoke("open-result-folder", filePath),
   onProgress: (callback) => {
     const listener = (_, progress) => {
       callback(progress);

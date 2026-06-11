@@ -6,8 +6,8 @@ import path from 'node:path'
 import { calculateVideoBitrate } from '../../utils/bitrate.utils'
 import { attachProgressListener, captureStderr } from '../../utils/ffmpeg.utils'
 import { calculateResolution } from '../../utils/resolution.utils'
-import { buildOutputPath } from '../../utils/file.utils'
-import { registerFfmpegProcess } from '../../utils/process-registry.utils'
+import { buildOutputPath, removeFileIfExists } from '../../utils/file.utils'
+import { createCompressionCancelledError, registerFfmpegProcess } from '../../utils/process-registry.utils'
 
 
 const require = createRequire(import.meta.url)
@@ -103,7 +103,7 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
                 : '/dev/null'
         ])
 
-        const unregisterPass1Process =
+        const pass1Control =
             registerFfmpegProcess(pass1Process)
 
         let finished = false
@@ -115,7 +115,7 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
                 if (finished) return
 
                 finished = true
-                unregisterPass1Process()
+                pass1Control.unregister()
 
                 console.error(
                     'First pass process error:',
@@ -141,18 +141,27 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
 
         pass1Process.on(
             'close',
-            (code) => {
+            async (code, signal) => {
 
                 if (finished) return
 
                 finished = true
-                unregisterPass1Process()
+                pass1Control.unregister()
 
-                if (code === 0) {
+                if (code === 0 && !signal && !pass1Control.isCancelled()) {
                     onProgress(50)
                     resolve()
                 } else {
+                    const wasCancelled =
+                        pass1Control.isCancelled() ||
+                        signal !== null
+
                     cleanupPassLogs(passLogFile)
+
+                    if (wasCancelled) {
+                        reject(createCompressionCancelledError())
+                        return
+                    }
 
                     reject(
                         new Error(
@@ -207,7 +216,7 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
             outputPath
         ])
 
-        const unregisterFfmpegProcess =
+        const ffmpegControl =
             registerFfmpegProcess(ffmpegProcess)
 
         console.log('FFmpeg process created')
@@ -216,12 +225,12 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
 
         ffmpegProcess.on(
             'error',
-            (error) => {
+            async (error) => {
 
                 if (finished) return
 
                 finished = true
-                unregisterFfmpegProcess()
+                ffmpegControl.unregister()
 
                 console.error(
                     'FFmpeg process error:',
@@ -229,6 +238,7 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
                 )
 
                 cleanupPassLogs(passLogFile)
+                await removeFileIfExists(outputPath)
 
                 reject(error)
             }
@@ -245,12 +255,12 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
             100
         )
 
-        ffmpegProcess.on('close', (code) => {
+        ffmpegProcess.on('close', async (code, signal) => {
 
             if (finished) return
 
             finished = true
-            unregisterFfmpegProcess()
+            ffmpegControl.unregister()
 
             console.log(
                 `FFmpeg closed with code ${code}`
@@ -258,7 +268,7 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
 
             cleanupPassLogs(passLogFile)
 
-            if (code === 0) {
+            if (code === 0 && !signal && !ffmpegControl.isCancelled()) {
 
                 console.log(
                     'Compression finished'
@@ -269,6 +279,16 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
                 resolve(outputPath)
 
             } else {
+                const wasCancelled =
+                    ffmpegControl.isCancelled() ||
+                    signal !== null
+
+                await removeFileIfExists(outputPath)
+
+                if (wasCancelled) {
+                    reject(createCompressionCancelledError())
+                    return
+                }
 
                 reject(
                     new Error(
@@ -295,4 +315,3 @@ function cleanupPassLogs(
         )
     } catch { }
 }
-

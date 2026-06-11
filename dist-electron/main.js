@@ -1,12 +1,13 @@
-import { dialog, app, BrowserWindow, ipcMain, protocol } from "electron";
+import { dialog, app, BrowserWindow, ipcMain, shell, protocol } from "electron";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { spawn, execFile } from "child_process";
 import { promisify } from "util";
-import fs from "fs";
+import fs$1 from "fs";
+import fs from "node:fs/promises";
 import require$$1 from "path";
-import fs$1 from "node:fs";
+import fs$2 from "node:fs";
 function calculateVideoBitrate(targetSizeMB, duration, audioBitrateKbps = 96) {
   const overheadFactor = 0.98;
   const targetBits = targetSizeMB * 1024 * 1024 * 8 * overheadFactor;
@@ -88,37 +89,70 @@ function buildOutputPath(filePath, codec, targetSizeMB, useTwoPass) {
     `${parsedFile.name}-${codecName}-${passMode}-${sizeLabel}MB-compressed.mp4`
   );
 }
+async function removeFileIfExists(filePath) {
+  try {
+    await fs.unlink(filePath);
+  } catch (error) {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT") {
+      return;
+    }
+    throw error;
+  }
+}
 const activeFfmpegProcesses = /* @__PURE__ */ new Set();
 const PROCESS_TERMINATION_TIMEOUT_MS = 3e3;
 function registerFfmpegProcess(process2) {
-  activeFfmpegProcesses.add(process2);
+  let cancelled = false;
+  let disposed = false;
+  let resolveStopped;
+  const stopped = new Promise((resolve) => {
+    resolveStopped = resolve;
+  });
   const cleanup = () => {
-    activeFfmpegProcesses.delete(process2);
-  };
-  process2.once("exit", cleanup);
-  process2.once("close", cleanup);
-  process2.once("error", cleanup);
-  return () => {
-    cleanup();
+    if (disposed) {
+      return;
+    }
+    disposed = true;
+    activeFfmpegProcesses.delete(control);
     process2.removeListener("exit", cleanup);
-    process2.removeListener("close", cleanup);
     process2.removeListener("error", cleanup);
+    resolveStopped();
   };
+  const control = {
+    process: process2,
+    cancel: () => {
+      cancelled = true;
+      try {
+        process2.kill();
+      } catch {
+        cleanup();
+      }
+    },
+    isCancelled: () => cancelled,
+    stopped,
+    unregister: cleanup
+  };
+  activeFfmpegProcesses.add(control);
+  process2.once("exit", cleanup);
+  process2.once("error", cleanup);
+  return control;
 }
 async function terminateAllFfmpegProcesses() {
   const processes = Array.from(activeFfmpegProcesses);
+  processes.forEach((control) => control.cancel());
   await Promise.allSettled(
     processes.map(
-      (process2) => terminateFfmpegProcess(
-        process2,
+      (control) => terminateFfmpegProcess(
+        control,
         PROCESS_TERMINATION_TIMEOUT_MS
       )
     )
   );
 }
-async function terminateFfmpegProcess(process2, timeoutMs) {
+async function terminateFfmpegProcess(control, timeoutMs) {
+  const { process: process2 } = control;
   if (process2.exitCode !== null || process2.signalCode !== null) {
-    activeFfmpegProcesses.delete(process2);
+    control.unregister();
     return;
   }
   await new Promise((resolve) => {
@@ -132,22 +166,16 @@ async function terminateFfmpegProcess(process2, timeoutMs) {
       if (timer) {
         clearTimeout(timer);
       }
-      process2.removeListener("exit", cleanup);
-      process2.removeListener("close", cleanup);
-      process2.removeListener("error", cleanup);
-      activeFfmpegProcesses.delete(process2);
+      control.unregister();
       resolve();
     };
     timer = setTimeout(cleanup, timeoutMs);
-    process2.once("exit", cleanup);
-    process2.once("close", cleanup);
-    process2.once("error", cleanup);
-    try {
-      process2.kill();
-    } catch {
-      cleanup();
-    }
   });
+}
+function createCompressionCancelledError() {
+  const error = new Error("Compression cancelled");
+  error.name = "AbortError";
+  return error;
 }
 const require$3 = createRequire(import.meta.url);
 const ffmpeg$1 = require$3("ffmpeg-static");
@@ -200,7 +228,7 @@ async function onePassCompression(options) {
         outputPath
       ]
     );
-    const unregisterFfmpegProcess = registerFfmpegProcess(ffmpegProcess);
+    const ffmpegControl = registerFfmpegProcess(ffmpegProcess);
     console.log("FFmpeg process created");
     let finished = false;
     ffmpegProcess.on(
@@ -208,7 +236,7 @@ async function onePassCompression(options) {
       (error) => {
         if (finished) return;
         finished = true;
-        unregisterFfmpegProcess();
+        ffmpegControl.unregister();
         console.error(
           "FFmpeg process error:",
           error
@@ -224,20 +252,27 @@ async function onePassCompression(options) {
       0,
       100
     );
-    ffmpegProcess.on("close", (code) => {
+    ffmpegProcess.on("close", async (code, signal) => {
       if (finished) return;
       finished = true;
-      unregisterFfmpegProcess();
+      ffmpegControl.unregister();
       console.log(
         `FFmpeg closed with code ${code}`
       );
-      if (code === 0) {
+      if (code === 0 && !signal && !ffmpegControl.isCancelled()) {
         console.log(
           "Compression finished"
         );
         onProgress(100);
         resolve(outputPath);
       } else {
+        const wasCancelled = ffmpegControl.isCancelled() || signal !== null;
+        if (wasCancelled) {
+          await removeFileIfExists(outputPath);
+          reject(createCompressionCancelledError());
+          return;
+        }
+        await removeFileIfExists(outputPath);
         reject(
           new Error(
             `FFmpeg exited with code ${code}
@@ -306,14 +341,14 @@ async function twoPassCompression(options) {
       "null",
       process.platform === "win32" ? "NUL" : "/dev/null"
     ]);
-    const unregisterPass1Process = registerFfmpegProcess(pass1Process);
+    const pass1Control = registerFfmpegProcess(pass1Process);
     let finished = false;
     pass1Process.on(
       "error",
       (error) => {
         if (finished) return;
         finished = true;
-        unregisterPass1Process();
+        pass1Control.unregister();
         console.error(
           "First pass process error:",
           error
@@ -332,15 +367,20 @@ async function twoPassCompression(options) {
     );
     pass1Process.on(
       "close",
-      (code) => {
+      async (code, signal) => {
         if (finished) return;
         finished = true;
-        unregisterPass1Process();
-        if (code === 0) {
+        pass1Control.unregister();
+        if (code === 0 && !signal && !pass1Control.isCancelled()) {
           onProgress(50);
           resolve();
         } else {
+          const wasCancelled = pass1Control.isCancelled() || signal !== null;
           cleanupPassLogs(passLogFile);
+          if (wasCancelled) {
+            reject(createCompressionCancelledError());
+            return;
+          }
           reject(
             new Error(
               `First pass failed with code ${code}
@@ -379,20 +419,21 @@ ${getStderr()}`
       "pipe:1",
       outputPath
     ]);
-    const unregisterFfmpegProcess = registerFfmpegProcess(ffmpegProcess);
+    const ffmpegControl = registerFfmpegProcess(ffmpegProcess);
     console.log("FFmpeg process created");
     let finished = false;
     ffmpegProcess.on(
       "error",
-      (error) => {
+      async (error) => {
         if (finished) return;
         finished = true;
-        unregisterFfmpegProcess();
+        ffmpegControl.unregister();
         console.error(
           "FFmpeg process error:",
           error
         );
         cleanupPassLogs(passLogFile);
+        await removeFileIfExists(outputPath);
         reject(error);
       }
     );
@@ -404,21 +445,27 @@ ${getStderr()}`
       50,
       100
     );
-    ffmpegProcess.on("close", (code) => {
+    ffmpegProcess.on("close", async (code, signal) => {
       if (finished) return;
       finished = true;
-      unregisterFfmpegProcess();
+      ffmpegControl.unregister();
       console.log(
         `FFmpeg closed with code ${code}`
       );
       cleanupPassLogs(passLogFile);
-      if (code === 0) {
+      if (code === 0 && !signal && !ffmpegControl.isCancelled()) {
         console.log(
           "Compression finished"
         );
         onProgress(100);
         resolve(outputPath);
       } else {
+        const wasCancelled = ffmpegControl.isCancelled() || signal !== null;
+        await removeFileIfExists(outputPath);
+        if (wasCancelled) {
+          reject(createCompressionCancelledError());
+          return;
+        }
         reject(
           new Error(
             `FFmpeg exited with code ${code}
@@ -431,13 +478,13 @@ ${getStderr()}`
 }
 function cleanupPassLogs(passLogFile) {
   try {
-    fs.unlinkSync(
+    fs$1.unlinkSync(
       `${passLogFile}-0.log`
     );
   } catch {
   }
   try {
-    fs.unlinkSync(
+    fs$1.unlinkSync(
       `${passLogFile}-0.log.mbtree`
     );
   } catch {
@@ -482,7 +529,7 @@ async function selectVideo() {
   return result.filePaths[0];
 }
 async function getVideoInfo(filePath) {
-  const stats = fs.statSync(filePath);
+  const stats = fs$1.statSync(filePath);
   const { stdout } = await execFileAsync(
     ffprobe.path,
     [
@@ -11358,10 +11405,15 @@ let win;
 let isShuttingDown = false;
 function createWindow() {
   win = new BrowserWindow({
+    width: 1200,
+    height: 720,
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname$1, "preload.mjs")
     }
   });
+  win.setMenuBarVisibility(false);
+  win.removeMenu();
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL);
   } else {
@@ -11428,6 +11480,12 @@ ipcMain.handle("compress-video", async (_, filePath, targetSizeMB, duration, wid
     throw error;
   }
 });
+ipcMain.handle("cancel-compression", async () => {
+  await terminateAllFfmpegProcesses();
+});
+ipcMain.handle("open-result-folder", async (_, filePath) => {
+  shell.showItemInFolder(filePath);
+});
 app.whenReady().then(() => {
   protocol.handle(
     "video",
@@ -11439,7 +11497,7 @@ app.whenReady().then(() => {
             "video://".length
           )
         );
-        const stat = await fs$1.promises.stat(
+        const stat = await fs$2.promises.stat(
           filePath
         );
         const range = request.headers.get(
@@ -11447,7 +11505,7 @@ app.whenReady().then(() => {
         );
         const contentType = ((_a = mime.lookup(filePath)) == null ? void 0 : _a.toString()) || "application/octet-stream";
         if (!range) {
-          const stream2 = fs$1.createReadStream(
+          const stream2 = fs$2.createReadStream(
             filePath
           );
           return new Response(
@@ -11476,7 +11534,7 @@ app.whenReady().then(() => {
         }
         const end = parts[1] ? Number(parts[1]) : stat.size - 1;
         const chunkSize = end - start + 1;
-        const stream = fs$1.createReadStream(
+        const stream = fs$2.createReadStream(
           filePath,
           {
             start,

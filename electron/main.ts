@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { selectVideo, getVideoInfo, compressVideo } from './services/video.services'
@@ -22,10 +22,16 @@ let isShuttingDown = false
 
 function createWindow() {
   win = new BrowserWindow({
+    width: 1200,
+    height: 720,
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
     },
   })
+
+  win.setMenuBarVisibility(false)
+  win.removeMenu()
 
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL)
@@ -96,6 +102,14 @@ ipcMain.handle('compress-video', async (_, filePath: string, targetSizeMB: numbe
     console.error(error)
     throw error
   }
+})
+
+ipcMain.handle('cancel-compression', async () => {
+  await terminateAllFfmpegProcesses()
+})
+
+ipcMain.handle('open-result-folder', async (_, filePath: string) => {
+  shell.showItemInFolder(filePath)
 })
 
 app.whenReady().then(() => {

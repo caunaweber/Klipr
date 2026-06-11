@@ -1,39 +1,75 @@
 import type { ChildProcessWithoutNullStreams } from 'node:child_process'
 
+export interface FfmpegProcessControl {
+  process: ChildProcessWithoutNullStreams
+  cancel: () => void
+  isCancelled: () => boolean
+  stopped: Promise<void>
+  unregister: () => void
+}
+
 const activeFfmpegProcesses =
-  new Set<ChildProcessWithoutNullStreams>()
+  new Set<FfmpegProcessControl>()
 
 const PROCESS_TERMINATION_TIMEOUT_MS = 3000
 
 export function registerFfmpegProcess(
   process: ChildProcessWithoutNullStreams
-) {
-  activeFfmpegProcesses.add(process)
+) : FfmpegProcessControl {
+  let cancelled = false
+  let disposed = false
+
+  let resolveStopped!: () => void
+  const stopped = new Promise<void>((resolve) => {
+    resolveStopped = resolve
+  })
 
   const cleanup = () => {
-    activeFfmpegProcesses.delete(process)
+    if (disposed) {
+      return
+    }
+
+    disposed = true
+    activeFfmpegProcesses.delete(control)
+    process.removeListener('exit', cleanup)
+    process.removeListener('error', cleanup)
+    resolveStopped()
   }
+
+  const control: FfmpegProcessControl = {
+    process,
+    cancel: () => {
+      cancelled = true
+
+      try {
+        process.kill()
+      } catch {
+        cleanup()
+      }
+    },
+    isCancelled: () => cancelled,
+    stopped,
+    unregister: cleanup,
+  }
+
+  activeFfmpegProcesses.add(control)
 
   process.once('exit', cleanup)
-  process.once('close', cleanup)
   process.once('error', cleanup)
 
-  return () => {
-    cleanup()
-    process.removeListener('exit', cleanup)
-    process.removeListener('close', cleanup)
-    process.removeListener('error', cleanup)
-  }
+  return control
 }
 
 export async function terminateAllFfmpegProcesses() {
   const processes =
     Array.from(activeFfmpegProcesses)
 
+  processes.forEach((control) => control.cancel())
+
   await Promise.allSettled(
-    processes.map((process) =>
+    processes.map((control) =>
       terminateFfmpegProcess(
-        process,
+        control,
         PROCESS_TERMINATION_TIMEOUT_MS
       )
     )
@@ -41,14 +77,16 @@ export async function terminateAllFfmpegProcesses() {
 }
 
 async function terminateFfmpegProcess(
-  process: ChildProcessWithoutNullStreams,
+  control: FfmpegProcessControl,
   timeoutMs: number
 ) {
+  const { process } = control
+
   if (
     process.exitCode !== null ||
     process.signalCode !== null
   ) {
-    activeFfmpegProcesses.delete(process)
+    control.unregister()
     return
   }
 
@@ -67,23 +105,16 @@ async function terminateFfmpegProcess(
         clearTimeout(timer)
       }
 
-      process.removeListener('exit', cleanup)
-      process.removeListener('close', cleanup)
-      process.removeListener('error', cleanup)
-      activeFfmpegProcesses.delete(process)
+      control.unregister()
       resolve()
     }
 
     timer = setTimeout(cleanup, timeoutMs)
-
-    process.once('exit', cleanup)
-    process.once('close', cleanup)
-    process.once('error', cleanup)
-
-    try {
-      process.kill()
-    } catch {
-      cleanup()
-    }
   })
+}
+
+export function createCompressionCancelledError() {
+  const error = new Error('Compression cancelled')
+  error.name = 'AbortError'
+  return error
 }

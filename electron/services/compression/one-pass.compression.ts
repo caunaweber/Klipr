@@ -4,8 +4,8 @@ import { spawn } from 'child_process'
 import { calculateVideoBitrate } from '../../utils/bitrate.utils'
 import { attachProgressListener, captureStderr } from '../../utils/ffmpeg.utils'
 import { calculateResolution } from '../../utils/resolution.utils'
-import { buildOutputPath } from '../../utils/file.utils'
-import { registerFfmpegProcess } from '../../utils/process-registry.utils'
+import { buildOutputPath, removeFileIfExists } from '../../utils/file.utils'
+import { createCompressionCancelledError, registerFfmpegProcess } from '../../utils/process-registry.utils'
 
 const require = createRequire(import.meta.url)
 const ffmpeg = require('ffmpeg-static')
@@ -85,7 +85,7 @@ export async function onePassCompression(options: CompressionOptions): Promise<s
             ]
         )
 
-        const unregisterFfmpegProcess =
+        const ffmpegControl =
             registerFfmpegProcess(ffmpegProcess)
 
         console.log('FFmpeg process created')
@@ -99,7 +99,7 @@ export async function onePassCompression(options: CompressionOptions): Promise<s
                 if (finished) return
 
                 finished = true
-                unregisterFfmpegProcess()
+                ffmpegControl.unregister()
 
                 console.error(
                     'FFmpeg process error:',
@@ -121,18 +121,18 @@ export async function onePassCompression(options: CompressionOptions): Promise<s
             100
         )
 
-        ffmpegProcess.on('close', (code) => {
+        ffmpegProcess.on('close', async (code, signal) => {
 
             if (finished) return
 
             finished = true
-            unregisterFfmpegProcess()
+            ffmpegControl.unregister()
 
             console.log(
                 `FFmpeg closed with code ${code}`
             )
 
-            if (code === 0) {
+            if (code === 0 && !signal && !ffmpegControl.isCancelled()) {
 
                 console.log(
                     'Compression finished'
@@ -143,6 +143,17 @@ export async function onePassCompression(options: CompressionOptions): Promise<s
                 resolve(outputPath)
 
             } else {
+                const wasCancelled =
+                    ffmpegControl.isCancelled() ||
+                    signal !== null
+
+                if (wasCancelled) {
+                    await removeFileIfExists(outputPath)
+                    reject(createCompressionCancelledError())
+                    return
+                }
+
+                await removeFileIfExists(outputPath)
 
                 reject(
                     new Error(
