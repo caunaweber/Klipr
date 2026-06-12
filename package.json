@@ -1,7 +1,9 @@
 {
-  "name": "video-compressor",
+  "name": "klipr",
   "private": true,
   "version": "0.0.0",
+  "description": "Desktop app for trimming and compressing video clips for sharing.",
+  "author": "caunaweber",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -24,7 +26,6 @@
   },
   "devDependencies": {
     "@types/ffprobe-static": "^2.0.3",
-    "@types/mime-types": "^3.0.1",
     "@types/react": "^18.2.64",
     "@types/react-dom": "^18.2.21",
     "@typescript-eslint/eslint-plugin": "^7.1.1",

@@ -4,7 +4,6 @@ import path from 'node:path'
 import { selectVideo, selectDroppedVideo, compressVideo } from './services/video.services'
 import { CompressionRequest } from './types/compression'
 import { protocol } from 'electron'
-import mime from 'mime-types'
 import fs from 'node:fs'
 import { terminateAllFfmpegProcesses } from './utils/process-registry.utils'
 import { getSelectedVideoPath } from './utils/selected-video-registry.utils'
@@ -148,6 +147,24 @@ function parseRangeHeader(
     start,
     end
   }
+}
+
+function getVideoContentType(filePath: string) {
+  const extension = path.extname(filePath).toLowerCase()
+
+  if (extension === '.mp4') {
+    return 'video/mp4'
+  }
+
+  if (extension === '.mkv') {
+    return 'video/x-matroska'
+  }
+
+  if (extension === '.avi') {
+    return 'video/x-msvideo'
+  }
+
+  return 'application/octet-stream'
 }
 
 function createWindow() {
@@ -295,8 +312,7 @@ app.whenReady().then(() => {
           )
 
         const contentType =
-          mime.lookup(filePath)?.toString() ||
-          'application/octet-stream'
+          getVideoContentType(filePath)
 
         if (!range) {
 
