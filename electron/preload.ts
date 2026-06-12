@@ -1,4 +1,4 @@
-import { ipcRenderer, contextBridge } from 'electron'
+import { ipcRenderer, contextBridge, webUtils } from 'electron'
 import { CompressionRequest, CompressionResult } from './types/compression'
 import { VideoInfo } from './types/video'
 
@@ -6,6 +6,12 @@ import { VideoInfo } from './types/video'
 contextBridge.exposeInMainWorld('videoCompressor', {
   selectVideo: (): Promise<VideoInfo | null> =>
     ipcRenderer.invoke('select-video'),
+
+  selectDroppedVideo: (filePath: string): Promise<VideoInfo> =>
+    ipcRenderer.invoke('select-dropped-video', filePath),
+
+  getPathForFile: (file: File): string =>
+    webUtils.getPathForFile(file),
 
   compressVideo: (request: CompressionRequest): Promise<CompressionResult> =>
     ipcRenderer.invoke('compress-video', request),

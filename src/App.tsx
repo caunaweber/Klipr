@@ -1,138 +1,194 @@
 import { useRef } from 'react'
 import './App.css'
-import { FileVideo, Play, SlidersHorizontal, Upload } from 'lucide-react'
+import {
+  AlertCircle,
+  CheckCircle2,
+  Loader2,
+  Play,
+  SlidersHorizontal,
+  Square,
+} from 'lucide-react'
 import { CodecSelect } from './components/CodecSelect'
 import { CompressionProgress } from './components/CompressionProgress'
 import { CompressionResult } from './components/CompressionResult'
 import { TargetSizeInput } from './components/TargetSizeInput'
-import { TrimRange } from './components/TrimRange'
 import { TwoPassToggle } from './components/TwoPassToggle'
-import { VideoDetails } from './components/VideoDetails'
+import { VideoDropzone } from './components/VideoDropzone'
 import { VideoPreview } from './components/VideoPreview'
 import { Button } from './components/ui/button'
 import { useVideoCompression } from './hooks/useVideoCompression'
+import { useVideoPlayer } from './hooks/useVideoPlayer'
 
 function App() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const {
+    cancelCompression,
     clipEnd,
     clipStart,
     codec,
+    clearVideo,
     compressVideo,
     compressionResult,
+    isCancelling,
     isCompressing,
+    isSelectingVideo,
+    message,
+    openResultFolder,
     progress,
+    selectDroppedVideo,
     selectVideo,
     setClipEnd,
     setClipStart,
     setCodec,
     setTargetSizeMB,
     setUseTwoPass,
+    status,
     targetSizeMB,
     useTwoPass,
     videoInfo,
   } = useVideoCompression()
+  const player = useVideoPlayer({
+    clipEnd,
+    clipStart,
+    videoRef,
+  })
 
   const isCompressDisabled =
-    !videoInfo || isCompressing || Number(targetSizeMB) >= videoInfo.sizeMB
+    !videoInfo || Number(targetSizeMB) >= videoInfo.sizeMB
+  const messageTone =
+    status === 'success'
+      ? 'success'
+      : status === 'error' || status === 'cancelled'
+        ? 'error'
+        : 'info'
+
+  const resetTrim = () => {
+    if (!videoInfo) return
+
+    setClipStart(0)
+    setClipEnd(videoInfo.duration)
+    if (videoRef.current) {
+      videoRef.current.currentTime = 0
+    }
+  }
+
+  const handleCompressButtonClick = () => {
+    if (isCompressing) {
+      void cancelCompression()
+      return
+    }
+
+    void compressVideo()
+  }
 
   return (
-    <main className="min-h-screen px-4 py-6 text-foreground sm:px-6 lg:px-8">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
-        <header className="flex flex-col gap-3 border-b border-border pb-5 sm:flex-row sm:items-end sm:justify-between">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.16),transparent_34%),linear-gradient(135deg,#071923_0%,#0a222b_48%,#061116_100%)] px-4 py-4 text-foreground sm:px-5 lg:px-6">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-3">
+        <header className="flex flex-col gap-3 border-b border-border pb-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div className="mb-2 flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <FileVideo className="h-4 w-4" />
-              Desktop video utility
-            </div>
-            <h1 className="text-2xl font-semibold tracking-normal text-foreground sm:text-3xl">
+            <h1 className="text-xl font-semibold tracking-normal text-foreground sm:text-2xl">
               Video Compressor
             </h1>
           </div>
-
-          <Button
-            className="w-full sm:w-auto"
-            onClick={selectVideo}
-            disabled={isCompressing}
-          >
-            <Upload />
-            Select video
-          </Button>
         </header>
 
-        <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="flex min-w-0 flex-col gap-5">
-            {videoInfo ? (
-              <>
-                <VideoPreview videoInfo={videoInfo} videoRef={videoRef} />
-                <VideoDetails videoInfo={videoInfo} />
-                <TrimRange
-                  clipEnd={clipEnd}
-                  clipStart={clipStart}
-                  duration={videoInfo.duration}
-                  onClipEndChange={setClipEnd}
-                  onClipStartChange={setClipStart}
-                  videoRef={videoRef}
-                />
-              </>
+        {message && (
+          <section
+            className={`flex items-start gap-3 rounded-lg border px-3 py-2 text-sm shadow-soft ${
+              messageTone === 'success'
+                ? 'border-primary/50 bg-primary/10 text-foreground'
+                : messageTone === 'error'
+                  ? 'border-destructive/50 bg-destructive/10 text-foreground'
+                  : 'border-border bg-card text-foreground'
+            }`}
+          >
+            {messageTone === 'success' ? (
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+            ) : messageTone === 'error' ? (
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
             ) : (
-              <section className="flex min-h-[360px] flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card p-8 text-center shadow-soft">
-                <div className="mb-4 rounded-full bg-accent p-3 text-accent-foreground">
-                  <Upload className="h-6 w-6" />
-                </div>
-                <h2 className="text-lg font-semibold">Select a video</h2>
-                <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-                  Choose a local file to preview it, trim the clip, and set the
-                  compression target.
-                </p>
-                <Button
-                  className="mt-5"
-                  variant="secondary"
-                  onClick={selectVideo}
-                  disabled={isCompressing}
-                >
-                  <Upload />
-                  Browse file
-                </Button>
-              </section>
+              <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-primary" />
+            )}
+            <span className="min-w-0 break-words">{message}</span>
+          </section>
+        )}
+
+        <section
+          className={
+            videoInfo
+              ? 'grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]'
+              : 'grid gap-3'
+          }
+        >
+          <div className={videoInfo ? 'flex min-w-0 flex-col gap-3' : 'mx-auto flex w-full max-w-3xl flex-col gap-3'}>
+            {videoInfo ? (
+              <VideoPreview
+                clipEnd={clipEnd}
+                clipStart={clipStart}
+                currentTime={player.currentTime}
+                duration={player.duration || videoInfo.duration}
+                isClearDisabled={isCompressing}
+                isPlaying={player.isPlaying}
+                onClipEndChange={setClipEnd}
+                onClipStartChange={setClipStart}
+                onClearVideo={clearVideo}
+                onResetTrim={resetTrim}
+                onTogglePlayback={player.togglePlayback}
+                videoInfo={videoInfo}
+                videoRef={videoRef}
+              />
+            ) : (
+              <VideoDropzone
+                error={status === 'error' ? message : null}
+                isLoading={isSelectingVideo}
+                onDropVideo={selectDroppedVideo}
+                onSelectVideo={selectVideo}
+              />
             )}
           </div>
 
-          <aside className="flex flex-col gap-5">
-            <section className="rounded-lg border border-border bg-card p-5 shadow-soft">
-              <div className="mb-4 flex items-center gap-2">
-                <SlidersHorizontal className="h-4 w-4 text-primary" />
-                <h2 className="text-base font-semibold">Compression</h2>
-              </div>
+          {videoInfo && (
+            <aside className="flex flex-col gap-3">
+              <section className="rounded-lg border border-border bg-card p-4 shadow-soft">
+                <div className="mb-3 flex items-center gap-2">
+                  <SlidersHorizontal className="h-4 w-4 text-primary" />
+                  <h2 className="text-base font-semibold">Compression</h2>
+                </div>
 
-              <div className="flex flex-col gap-4">
-                <CodecSelect codec={codec} onCodecChange={setCodec} />
-                <TwoPassToggle
-                  checked={useTwoPass}
-                  onCheckedChange={setUseTwoPass}
-                />
-                <TargetSizeInput
-                  value={targetSizeMB}
-                  onValueChange={setTargetSizeMB}
-                />
+                <div className="flex flex-col gap-3">
+                  <CodecSelect codec={codec} onCodecChange={setCodec} />
+                  <TwoPassToggle
+                    checked={useTwoPass}
+                    onCheckedChange={setUseTwoPass}
+                  />
+                  <TargetSizeInput
+                    value={targetSizeMB}
+                    onValueChange={setTargetSizeMB}
+                  />
 
-                <Button
-                  className="mt-1 w-full"
-                  onClick={compressVideo}
-                  disabled={isCompressDisabled}
-                >
-                  <Play />
-                  {isCompressing ? 'Compressing...' : 'Compress'}
-                </Button>
+                  <Button
+                    className="w-full"
+                    disabled={isCompressDisabled || isCancelling}
+                    onClick={handleCompressButtonClick}
+                    variant={isCompressing ? 'outline' : 'default'}
+                  >
+                    {isCompressing ? <Square /> : <Play />}
+                    {isCompressing
+                      ? isCancelling
+                        ? 'Cancelling...'
+                        : 'Cancel'
+                      : 'Compress'}
+                  </Button>
 
-                <CompressionProgress progress={progress} />
-              </div>
-            </section>
+                  <CompressionProgress progress={progress} />
+                </div>
+              </section>
 
-            {compressionResult && (
-              <CompressionResult result={compressionResult} />
-            )}
-          </aside>
+              {compressionResult && (
+                <CompressionResult onOpenFolder={openResultFolder} />
+              )}
+            </aside>
+          )}
         </section>
       </div>
     </main>

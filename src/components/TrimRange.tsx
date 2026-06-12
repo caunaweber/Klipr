@@ -1,6 +1,8 @@
 import { useState, type RefObject } from 'react'
+import { RotateCcw } from 'lucide-react'
 import { Range } from 'react-range'
 import { formatDuration } from '../utils/formatDuration'
+import { Button } from './ui/button'
 
 interface TrimRangeProps {
   clipEnd: number
@@ -8,6 +10,7 @@ interface TrimRangeProps {
   duration: number
   onClipEndChange: (clipEnd: number) => void
   onClipStartChange: (clipStart: number) => void
+  onResetTrim: () => void
   videoRef: RefObject<HTMLVideoElement>
 }
 
@@ -17,6 +20,7 @@ export function TrimRange({
   duration,
   onClipEndChange,
   onClipStartChange,
+  onResetTrim,
   videoRef,
 }: TrimRangeProps) {
   const [activeThumb, setActiveThumb] = useState(0)
@@ -25,13 +29,27 @@ export function TrimRange({
   const endPercent = (clipEnd / duration) * 100
 
   return (
-    <section className="rounded-lg border border-border bg-card p-5 shadow-soft">
-      <div className="mb-5">
-        <h3 className="text-base font-semibold">Trim</h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {formatDuration(clipStart)} to {formatDuration(clipEnd)} (
-          {formatDuration(clipEnd - clipStart)})
-        </p>
+    <div className="border-t border-border bg-card/95 px-3 pb-4 pt-3 sm:px-4">
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold">Trim</h3>
+          <p className="mt-0.5 break-words text-xs text-muted-foreground">
+            {formatDuration(clipStart)} to {formatDuration(clipEnd)} (
+            {formatDuration(clipEnd - clipStart)})
+          </p>
+        </div>
+
+        <Button
+          aria-label="Reset trim"
+          className="shrink-0"
+          onClick={onResetTrim}
+          size="sm"
+          type="button"
+          variant="outline"
+        >
+          <RotateCcw />
+          Reset
+        </Button>
       </div>
 
       <Range
@@ -83,6 +101,6 @@ export function TrimRange({
           />
         )}
       />
-    </section>
+    </div>
   )
 }

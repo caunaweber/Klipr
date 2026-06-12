@@ -17,6 +17,7 @@ const execFileAsync = promisify(execFile)
 const require = createRequire(import.meta.url)
 const ffprobe = require('ffprobe-static')
 
+const SUPPORTED_VIDEO_EXTENSIONS = new Set(['.mp4', '.avi', '.mkv'])
 
 interface FfprobeStream {
   codec_type?: string
@@ -44,6 +45,24 @@ export async function selectVideo(): Promise<VideoInfo | null> {
   }
 
   const filePath = result.filePaths[0]
+  const id = registerSelectedVideo(filePath)
+
+  return getVideoInfo(filePath, id)
+}
+
+export async function selectDroppedVideo(filePath: string): Promise<VideoInfo> {
+  const extension = path.extname(filePath).toLowerCase()
+
+  if (!SUPPORTED_VIDEO_EXTENSIONS.has(extension)) {
+    throw new Error('Unsupported video format')
+  }
+
+  const stats = fs.statSync(filePath)
+
+  if (!stats.isFile()) {
+    throw new Error('Dropped item is not a file')
+  }
+
   const id = registerSelectedVideo(filePath)
 
   return getVideoInfo(filePath, id)

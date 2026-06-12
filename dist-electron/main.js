@@ -1,425 +1,587 @@
-import { dialog as ma, app as U, BrowserWindow as Z, ipcMain as $, shell as da, protocol as xa } from "electron";
-import { fileURLToPath as va } from "node:url";
-import w from "node:path";
-import { createRequire as H } from "node:module";
-import { spawn as O, execFile as ba } from "child_process";
-import { promisify as fa } from "util";
-import N from "fs";
-import ga from "node:fs/promises";
-import { randomUUID as aa } from "node:crypto";
-import ha from "path";
-import M from "node:fs";
-import { Readable as Y } from "node:stream";
-function ea(a, e, i = 96) {
-  const s = a * 1024 * 1024 * 8 * 0.98, o = i * 1e3 * e, r = s - o, l = Math.round(r / e / 1e3);
-  if (l < 100)
+import { dialog, app, BrowserWindow, ipcMain, shell, protocol } from "electron";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
+import { createRequire } from "node:module";
+import { spawn, execFile } from "child_process";
+import { promisify } from "util";
+import fs$1 from "fs";
+import fs from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import require$$1 from "path";
+import fs$2 from "node:fs";
+import { Readable } from "node:stream";
+function calculateVideoBitrate(targetSizeMB, duration, audioBitrateKbps = 96) {
+  const overheadFactor = 0.98;
+  const targetBits = targetSizeMB * 1024 * 1024 * 8 * overheadFactor;
+  const audioBits = audioBitrateKbps * 1e3 * duration;
+  const videoBits = targetBits - audioBits;
+  const bitrateKbps = Math.round(videoBits / duration / 1e3);
+  if (bitrateKbps < 100) {
     throw new Error("Target size is too small for this video.");
+  }
   return {
-    bitrateKbps: l,
-    audioBitrateKbps: i
+    bitrateKbps,
+    audioBitrateKbps
   };
 }
-function A(a, e, i, n, s) {
-  a.stdout.on(
+function attachProgressListener(process2, duration, onProgress, startPercent, endPercent) {
+  process2.stdout.on(
     "data",
-    (o) => {
-      const l = o.toString().match(
+    (data) => {
+      const output = data.toString();
+      const match = output.match(
         /out_time_ms=(\d+)/
       );
-      if (!l) return;
-      const b = Number(l[1]) / 1e6, f = Math.min(
-        s,
-        n + Math.floor(
-          b / e * (s - n)
+      if (!match) return;
+      const currentSeconds = Number(match[1]) / 1e6;
+      const progress = Math.min(
+        endPercent,
+        startPercent + Math.floor(
+          currentSeconds / duration * (endPercent - startPercent)
         )
       );
-      i(f);
+      onProgress(progress);
     }
   );
 }
-const B = 16384;
-function V(a) {
-  let e = "", i = !1;
-  return a.stderr.on(
+const MAX_STDERR_CHARS = 16384;
+function captureStderr(process2) {
+  let stderrOutput = "";
+  let truncated = false;
+  process2.stderr.on(
     "data",
-    (n) => {
-      e += n.toString(), e.length > B && (e = e.slice(
-        -B
-      ), i = !0);
+    (data) => {
+      stderrOutput += data.toString();
+      if (stderrOutput.length > MAX_STDERR_CHARS) {
+        stderrOutput = stderrOutput.slice(
+          -MAX_STDERR_CHARS
+        );
+        truncated = true;
+      }
     }
-  ), () => i ? `... stderr truncated to last ${B} chars
-${e}` : e;
+  );
+  return () => truncated ? `... stderr truncated to last ${MAX_STDERR_CHARS} chars
+${stderrOutput}` : stderrOutput;
 }
-function ia(a, e, i) {
-  return i < 700 && e > 480 ? {
-    width: 854,
-    height: 480
-  } : i < 2e3 && e > 720 ? {
-    width: 1280,
-    height: 720
-  } : {
-    width: a,
-    height: e
+function calculateResolution(width, height, bitrateKbps) {
+  if (bitrateKbps < 700 && height > 480) {
+    return {
+      width: 854,
+      height: 480
+    };
+  }
+  if (bitrateKbps < 2e3 && height > 720) {
+    return {
+      width: 1280,
+      height: 720
+    };
+  }
+  return {
+    width,
+    height
   };
 }
-function na(a, e, i, n) {
-  const s = w.parse(a), o = n ? "2pass" : "1pass", r = i.toString().replace(".", "_"), l = e === "h265" ? "hevc" : "avc";
-  return w.join(
-    s.dir,
-    `${s.name}-${l}-${o}-${r}MB-compressed.mp4`
+function buildOutputPath(filePath, codec, targetSizeMB, useTwoPass) {
+  const parsedFile = path.parse(filePath);
+  const passMode = useTwoPass ? "2pass" : "1pass";
+  const sizeLabel = targetSizeMB.toString().replace(".", "_");
+  const codecName = codec === "h265" ? "hevc" : "avc";
+  return path.join(
+    parsedFile.dir,
+    `${parsedFile.name}-${codecName}-${passMode}-${sizeLabel}MB-compressed.mp4`
   );
 }
-async function P(a) {
+async function removeFileIfExists(filePath) {
   try {
-    await ga.unlink(a);
-  } catch (e) {
-    if (typeof e == "object" && e !== null && "code" in e && e.code === "ENOENT")
+    await fs.unlink(filePath);
+  } catch (error) {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT") {
       return;
-    throw e;
+    }
+    throw error;
   }
 }
-const L = /* @__PURE__ */ new Set(), wa = 3e3;
-function D(a) {
-  let e = !1, i = !1, n;
-  const s = new Promise((l) => {
-    n = l;
-  }), o = () => {
-    i || (i = !0, L.delete(r), a.removeListener("exit", o), a.removeListener("error", o), n());
-  }, r = {
-    process: a,
+const activeFfmpegProcesses = /* @__PURE__ */ new Set();
+const PROCESS_TERMINATION_TIMEOUT_MS = 3e3;
+function registerFfmpegProcess(process2) {
+  let cancelled = false;
+  let disposed = false;
+  let resolveStopped;
+  const stopped = new Promise((resolve) => {
+    resolveStopped = resolve;
+  });
+  const cleanup = () => {
+    if (disposed) {
+      return;
+    }
+    disposed = true;
+    activeFfmpegProcesses.delete(control);
+    process2.removeListener("exit", cleanup);
+    process2.removeListener("error", cleanup);
+    resolveStopped();
+  };
+  const control = {
+    process: process2,
     cancel: () => {
-      e = !0;
+      cancelled = true;
       try {
-        a.kill();
+        process2.kill();
       } catch {
-        o();
+        cleanup();
       }
     },
-    isCancelled: () => e,
-    stopped: s,
-    unregister: o
+    isCancelled: () => cancelled,
+    stopped,
+    unregister: cleanup
   };
-  return L.add(r), a.once("exit", o), a.once("error", o), r;
+  activeFfmpegProcesses.add(control);
+  process2.once("exit", cleanup);
+  process2.once("error", cleanup);
+  return control;
 }
-async function sa() {
-  const a = Array.from(L);
-  a.forEach((e) => e.cancel()), await Promise.allSettled(
-    a.map(
-      (e) => ka(
-        e,
-        wa
+async function terminateAllFfmpegProcesses() {
+  const processes = Array.from(activeFfmpegProcesses);
+  processes.forEach((control) => control.cancel());
+  await Promise.allSettled(
+    processes.map(
+      (control) => terminateFfmpegProcess(
+        control,
+        PROCESS_TERMINATION_TIMEOUT_MS
       )
     )
   );
 }
-async function ka(a, e) {
-  const { process: i } = a;
-  if (i.exitCode !== null || i.signalCode !== null) {
-    a.unregister();
+async function terminateFfmpegProcess(control, timeoutMs) {
+  const { process: process2 } = control;
+  if (process2.exitCode !== null || process2.signalCode !== null) {
+    control.unregister();
     return;
   }
-  await new Promise((n) => {
-    let s = !1;
-    const r = setTimeout(() => {
-      s || (s = !0, r && clearTimeout(r), a.unregister(), n());
-    }, e);
+  await new Promise((resolve) => {
+    let settled = false;
+    const cleanup = () => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      if (timer) {
+        clearTimeout(timer);
+      }
+      control.unregister();
+      resolve();
+    };
+    const timer = setTimeout(cleanup, timeoutMs);
   });
 }
-function W() {
-  const a = new Error("Compression cancelled");
-  return a.name = "AbortError", a;
+function createCompressionCancelledError() {
+  const error = new Error("Compression cancelled");
+  error.name = "AbortError";
+  return error;
 }
-const ya = H(import.meta.url), ja = ya("ffmpeg-static");
-async function za(a) {
+const require$3 = createRequire(import.meta.url);
+const ffmpeg$1 = require$3("ffmpeg-static");
+async function onePassCompression(options) {
   const {
-    filePath: e,
-    targetSizeMB: i,
-    duration: n,
-    onProgress: s,
-    width: o,
-    height: r,
-    codec: l,
-    startTime: b,
-    endTime: f
-  } = a, t = b ?? 0, c = f ?? n, p = c - t;
-  if (p <= 0)
+    filePath,
+    targetSizeMB,
+    duration,
+    onProgress,
+    width,
+    height,
+    codec,
+    startTime,
+    endTime
+  } = options;
+  const start = startTime ?? 0;
+  const end = endTime ?? duration;
+  const clipDuration = end - start;
+  if (clipDuration <= 0) {
     throw new Error("Invalid clip duration");
-  const q = t > 0 || c < n ? ["-ss", String(t), "-t", String(p)] : [], { bitrateKbps: k, audioBitrateKbps: y } = ea(i, p), j = ia(o, r, k), d = na(e, l, i, !1), F = l === "h265" ? "libx265" : "libx264";
-  return new Promise((S, g) => {
-    const z = O(
-      ja,
+  }
+  const isTrimmed = start > 0 || end < duration;
+  const trimArgs = isTrimmed ? ["-ss", String(start), "-t", String(clipDuration)] : [];
+  const { bitrateKbps, audioBitrateKbps } = calculateVideoBitrate(targetSizeMB, clipDuration);
+  const resolution = calculateResolution(width, height, bitrateKbps);
+  const outputPath = buildOutputPath(filePath, codec, targetSizeMB, false);
+  const encoder = codec === "h265" ? "libx265" : "libx264";
+  return new Promise((resolve, reject) => {
+    const ffmpegProcess = spawn(
+      ffmpeg$1,
       [
         "-y",
-        ...q,
+        ...trimArgs,
         "-i",
-        e,
+        filePath,
         "-preset",
         "slow",
         "-b:v",
-        `${k}k`,
+        `${bitrateKbps}k`,
         "-c:v",
-        F,
+        encoder,
         "-c:a",
         "aac",
         "-b:a",
-        `${y}k`,
+        `${audioBitrateKbps}k`,
         "-vf",
-        `scale=${j.width}:${j.height}`,
+        `scale=${resolution.width}:${resolution.height}`,
         "-progress",
         "pipe:1",
-        d
+        outputPath
       ]
-    ), v = D(z);
+    );
+    const ffmpegControl = registerFfmpegProcess(ffmpegProcess);
     console.log("FFmpeg process created");
-    let u = !1;
-    z.on(
+    let finished = false;
+    ffmpegProcess.on(
       "error",
-      (m) => {
-        u || (u = !0, v.unregister(), console.error(
+      (error) => {
+        if (finished) return;
+        finished = true;
+        ffmpegControl.unregister();
+        console.error(
           "FFmpeg process error:",
-          m
-        ), g(m));
+          error
+        );
+        reject(error);
       }
     );
-    const h = V(z);
-    A(
-      z,
-      p,
-      s,
+    const getStderr = captureStderr(ffmpegProcess);
+    attachProgressListener(
+      ffmpegProcess,
+      clipDuration,
+      onProgress,
       0,
       100
-    ), z.on("close", async (m, _) => {
-      if (!u)
-        if (u = !0, v.unregister(), console.log(
-          `FFmpeg closed with code ${m}`
-        ), m === 0 && !_ && !v.isCancelled())
-          console.log(
-            "Compression finished"
-          ), s(100), S(d);
-        else {
-          if (v.isCancelled() || _ !== null) {
-            await P(d), g(W());
-            return;
-          }
-          await P(d), g(
-            new Error(
-              `FFmpeg exited with code ${m}
-${h()}`
-            )
-          );
+    );
+    ffmpegProcess.on("close", async (code, signal) => {
+      if (finished) return;
+      finished = true;
+      ffmpegControl.unregister();
+      console.log(
+        `FFmpeg closed with code ${code}`
+      );
+      if (code === 0 && !signal && !ffmpegControl.isCancelled()) {
+        console.log(
+          "Compression finished"
+        );
+        onProgress(100);
+        resolve(outputPath);
+      } else {
+        const wasCancelled = ffmpegControl.isCancelled() || signal !== null;
+        if (wasCancelled) {
+          await removeFileIfExists(outputPath);
+          reject(createCompressionCancelledError());
+          return;
         }
+        await removeFileIfExists(outputPath);
+        reject(
+          new Error(
+            `FFmpeg exited with code ${code}
+${getStderr()}`
+          )
+        );
+      }
     });
   });
 }
-const Ta = H(import.meta.url), J = Ta("ffmpeg-static");
-async function qa(a) {
+const require$2 = createRequire(import.meta.url);
+const ffmpeg = require$2("ffmpeg-static");
+async function twoPassCompression(options) {
   const {
-    filePath: e,
-    targetSizeMB: i,
-    duration: n,
-    onProgress: s,
-    width: o,
-    height: r,
-    codec: l,
-    startTime: b,
-    endTime: f
-  } = a, t = b ?? 0, c = f ?? n, p = c - t;
-  if (p <= 0)
+    filePath,
+    targetSizeMB,
+    duration,
+    onProgress,
+    width,
+    height,
+    codec,
+    startTime,
+    endTime
+  } = options;
+  const start = startTime ?? 0;
+  const end = endTime ?? duration;
+  const clipDuration = end - start;
+  if (clipDuration <= 0) {
     throw new Error("Invalid clip duration");
-  const q = t > 0 || c < n ? ["-ss", String(t), "-t", String(p)] : [], { bitrateKbps: k, audioBitrateKbps: y } = ea(i, p), j = ia(o, r, k), d = na(e, l, i, !0), F = l === "h265" ? "libx265" : "libx264", S = w.parse(e), g = w.join(
-    S.dir,
-    `${S.name}-passlog`
+  }
+  const isTrimmed = start > 0 || end < duration;
+  const trimArgs = isTrimmed ? ["-ss", String(start), "-t", String(clipDuration)] : [];
+  const { bitrateKbps, audioBitrateKbps } = calculateVideoBitrate(targetSizeMB, clipDuration);
+  const resolution = calculateResolution(width, height, bitrateKbps);
+  const outputPath = buildOutputPath(filePath, codec, targetSizeMB, true);
+  const encoder = codec === "h265" ? "libx265" : "libx264";
+  const parsedFile = path.parse(filePath);
+  const passLogFile = path.join(
+    parsedFile.dir,
+    `${parsedFile.name}-passlog`
   );
-  return console.log("Starting first pass..."), C(g), await new Promise((z, v) => {
-    const u = O(J, [
+  console.log("Starting first pass...");
+  cleanupPassLogs(passLogFile);
+  await new Promise((resolve, reject) => {
+    const pass1Process = spawn(ffmpeg, [
       "-y",
-      ...q,
+      ...trimArgs,
       "-i",
-      e,
+      filePath,
       "-fps_mode",
       "cfr",
       "-c:v",
-      F,
+      encoder,
       "-preset",
       "slow",
       "-b:v",
-      `${k}k`,
+      `${bitrateKbps}k`,
       "-pass",
       "1",
       "-passlogfile",
-      g,
+      passLogFile,
       "-an",
       "-progress",
       "pipe:1",
       "-f",
       "null",
       process.platform === "win32" ? "NUL" : "/dev/null"
-    ]), h = D(u);
-    let m = !1;
-    u.on(
+    ]);
+    const pass1Control = registerFfmpegProcess(pass1Process);
+    let finished = false;
+    pass1Process.on(
       "error",
-      (x) => {
-        m || (m = !0, h.unregister(), console.error(
+      (error) => {
+        if (finished) return;
+        finished = true;
+        pass1Control.unregister();
+        console.error(
           "First pass process error:",
-          x
-        ), C(g), v(x));
+          error
+        );
+        cleanupPassLogs(passLogFile);
+        reject(error);
       }
     );
-    const _ = V(u);
-    A(
-      u,
-      p,
-      s,
+    const getStderr = captureStderr(pass1Process);
+    attachProgressListener(
+      pass1Process,
+      clipDuration,
+      onProgress,
       0,
       50
-    ), u.on(
+    );
+    pass1Process.on(
       "close",
-      async (x, E) => {
-        if (!m)
-          if (m = !0, h.unregister(), x === 0 && !E && !h.isCancelled())
-            s(50), z();
-          else {
-            const R = h.isCancelled() || E !== null;
-            if (C(g), R) {
-              v(W());
-              return;
-            }
-            v(
-              new Error(
-                `First pass failed with code ${x}
-${_()}`
-              )
-            );
-          }
-      }
-    );
-  }), new Promise((z, v) => {
-    const u = O(J, [
-      "-y",
-      ...q,
-      "-i",
-      e,
-      "-fps_mode",
-      "cfr",
-      "-c:v",
-      F,
-      "-preset",
-      "slow",
-      "-b:v",
-      `${k}k`,
-      "-pass",
-      "2",
-      "-passlogfile",
-      g,
-      "-c:a",
-      "aac",
-      "-b:a",
-      `${y}k`,
-      "-vf",
-      `scale=${j.width}:${j.height}`,
-      "-progress",
-      "pipe:1",
-      d
-    ]), h = D(u);
-    console.log("FFmpeg process created");
-    let m = !1;
-    u.on(
-      "error",
-      async (x) => {
-        m || (m = !0, h.unregister(), console.error(
-          "FFmpeg process error:",
-          x
-        ), C(g), await P(d), v(x));
-      }
-    );
-    const _ = V(u);
-    A(
-      u,
-      p,
-      s,
-      50,
-      100
-    ), u.on("close", async (x, E) => {
-      if (!m)
-        if (m = !0, h.unregister(), console.log(
-          `FFmpeg closed with code ${x}`
-        ), C(g), x === 0 && !E && !h.isCancelled())
-          console.log(
-            "Compression finished"
-          ), s(100), z(d);
-        else {
-          const R = h.isCancelled() || E !== null;
-          if (await P(d), R) {
-            v(W());
+      async (code, signal) => {
+        if (finished) return;
+        finished = true;
+        pass1Control.unregister();
+        if (code === 0 && !signal && !pass1Control.isCancelled()) {
+          onProgress(50);
+          resolve();
+        } else {
+          const wasCancelled = pass1Control.isCancelled() || signal !== null;
+          cleanupPassLogs(passLogFile);
+          if (wasCancelled) {
+            reject(createCompressionCancelledError());
             return;
           }
-          v(
+          reject(
             new Error(
-              `FFmpeg exited with code ${x}
-${_()}`
+              `First pass failed with code ${code}
+${getStderr()}`
             )
           );
         }
+      }
+    );
+  });
+  return new Promise((resolve, reject) => {
+    const ffmpegProcess = spawn(ffmpeg, [
+      "-y",
+      ...trimArgs,
+      "-i",
+      filePath,
+      "-fps_mode",
+      "cfr",
+      "-c:v",
+      encoder,
+      "-preset",
+      "slow",
+      "-b:v",
+      `${bitrateKbps}k`,
+      "-pass",
+      "2",
+      "-passlogfile",
+      passLogFile,
+      "-c:a",
+      "aac",
+      "-b:a",
+      `${audioBitrateKbps}k`,
+      "-vf",
+      `scale=${resolution.width}:${resolution.height}`,
+      "-progress",
+      "pipe:1",
+      outputPath
+    ]);
+    const ffmpegControl = registerFfmpegProcess(ffmpegProcess);
+    console.log("FFmpeg process created");
+    let finished = false;
+    ffmpegProcess.on(
+      "error",
+      async (error) => {
+        if (finished) return;
+        finished = true;
+        ffmpegControl.unregister();
+        console.error(
+          "FFmpeg process error:",
+          error
+        );
+        cleanupPassLogs(passLogFile);
+        await removeFileIfExists(outputPath);
+        reject(error);
+      }
+    );
+    const getStderr = captureStderr(ffmpegProcess);
+    attachProgressListener(
+      ffmpegProcess,
+      clipDuration,
+      onProgress,
+      50,
+      100
+    );
+    ffmpegProcess.on("close", async (code, signal) => {
+      if (finished) return;
+      finished = true;
+      ffmpegControl.unregister();
+      console.log(
+        `FFmpeg closed with code ${code}`
+      );
+      cleanupPassLogs(passLogFile);
+      if (code === 0 && !signal && !ffmpegControl.isCancelled()) {
+        console.log(
+          "Compression finished"
+        );
+        onProgress(100);
+        resolve(outputPath);
+      } else {
+        const wasCancelled = ffmpegControl.isCancelled() || signal !== null;
+        await removeFileIfExists(outputPath);
+        if (wasCancelled) {
+          reject(createCompressionCancelledError());
+          return;
+        }
+        reject(
+          new Error(
+            `FFmpeg exited with code ${code}
+${getStderr()}`
+          )
+        );
+      }
     });
   });
 }
-function C(a) {
+function cleanupPassLogs(passLogFile) {
   try {
-    N.unlinkSync(
-      `${a}-0.log`
+    fs$1.unlinkSync(
+      `${passLogFile}-0.log`
     );
   } catch {
   }
   try {
-    N.unlinkSync(
-      `${a}-0.log.mbtree`
+    fs$1.unlinkSync(
+      `${passLogFile}-0.log.mbtree`
     );
   } catch {
   }
 }
-function Fa(a) {
-  const e = [];
-  if (Sa(a.codec) || e.push("codec must be h264 or h265"), (!Number.isFinite(a.targetSizeMB) || a.targetSizeMB <= 0) && e.push("targetSizeMB must be greater than 0"), Number.isFinite(a.targetSizeMB) && Number.isFinite(a.sourceSizeMB) && a.targetSizeMB >= a.sourceSizeMB && e.push("targetSizeMB must be smaller than the source file size"), (!Number.isFinite(a.duration) || a.duration <= 0) && e.push("duration must be greater than 0"), (!Number.isFinite(a.startTime) || a.startTime < 0) && e.push("startTime must be greater than or equal to 0"), (!Number.isFinite(a.endTime) || a.endTime <= a.startTime) && e.push("endTime must be greater than startTime"), Number.isFinite(a.endTime) && Number.isFinite(a.duration) && a.endTime > a.duration && e.push("endTime must be smaller than or equal to duration"), (!Number.isFinite(a.width) || a.width <= 0) && e.push("width must be greater than 0"), (!Number.isFinite(a.height) || a.height <= 0) && e.push("height must be greater than 0"), e.length > 0)
+function validateCompressionParameters(input) {
+  const errors = [];
+  if (!isSupportedCompressionCodec(input.codec)) {
+    errors.push("codec must be h264 or h265");
+  }
+  if (!Number.isFinite(input.targetSizeMB) || input.targetSizeMB <= 0) {
+    errors.push("targetSizeMB must be greater than 0");
+  }
+  if (Number.isFinite(input.targetSizeMB) && Number.isFinite(input.sourceSizeMB) && input.targetSizeMB >= input.sourceSizeMB) {
+    errors.push("targetSizeMB must be smaller than the source file size");
+  }
+  if (!Number.isFinite(input.duration) || input.duration <= 0) {
+    errors.push("duration must be greater than 0");
+  }
+  if (!Number.isFinite(input.startTime) || input.startTime < 0) {
+    errors.push("startTime must be greater than or equal to 0");
+  }
+  if (!Number.isFinite(input.endTime) || input.endTime <= input.startTime) {
+    errors.push("endTime must be greater than startTime");
+  }
+  if (Number.isFinite(input.endTime) && Number.isFinite(input.duration) && input.endTime > input.duration) {
+    errors.push("endTime must be smaller than or equal to duration");
+  }
+  if (!Number.isFinite(input.width) || input.width <= 0) {
+    errors.push("width must be greater than 0");
+  }
+  if (!Number.isFinite(input.height) || input.height <= 0) {
+    errors.push("height must be greater than 0");
+  }
+  if (errors.length > 0) {
     throw new Error(
-      `Invalid compression parameters: ${e.join("; ")}`
+      `Invalid compression parameters: ${errors.join("; ")}`
     );
+  }
 }
-function Sa(a) {
-  return a === "h264" || a === "h265";
+function isSupportedCompressionCodec(codec) {
+  return codec === "h264" || codec === "h265";
 }
-const X = /* @__PURE__ */ new Map();
-function _a(a) {
-  X.clear();
-  const e = aa();
-  return X.set(e, a), e;
+const selectedVideos = /* @__PURE__ */ new Map();
+function registerSelectedVideo(filePath) {
+  selectedVideos.clear();
+  const id = randomUUID();
+  selectedVideos.set(id, filePath);
+  return id;
 }
-function oa(a) {
-  return X.get(a) ?? null;
+function getSelectedVideoPath(id) {
+  return selectedVideos.get(id) ?? null;
 }
-const ca = /* @__PURE__ */ new Map();
-function Ua(a) {
-  const e = aa();
-  return ca.set(e, a), e;
+const generatedOutputs = /* @__PURE__ */ new Map();
+function registerGeneratedOutput(filePath) {
+  const id = randomUUID();
+  generatedOutputs.set(id, filePath);
+  return id;
 }
-function Ea(a) {
-  return ca.get(a) ?? null;
+function getGeneratedOutputPath(id) {
+  return generatedOutputs.get(id) ?? null;
 }
-const Ca = fa(ba), Pa = H(import.meta.url), $a = Pa("ffprobe-static");
-async function Ra() {
-  const a = await ma.showOpenDialog({
+const execFileAsync = promisify(execFile);
+const require$1 = createRequire(import.meta.url);
+const ffprobe = require$1("ffprobe-static");
+const SUPPORTED_VIDEO_EXTENSIONS = /* @__PURE__ */ new Set([".mp4", ".avi", ".mkv"]);
+async function selectVideo() {
+  const result = await dialog.showOpenDialog({
     properties: ["openFile"],
     filters: [
       { name: "Videos", extensions: ["mp4", "avi", "mkv"] }
     ]
   });
-  if (a.canceled)
+  if (result.canceled) {
     return null;
-  const e = a.filePaths[0], i = _a(e);
-  return ta(e, i);
+  }
+  const filePath = result.filePaths[0];
+  const id = registerSelectedVideo(filePath);
+  return getVideoInfo(filePath, id);
 }
-async function ta(a, e) {
-  const i = N.statSync(a), { stdout: n } = await Ca(
-    $a.path,
+async function selectDroppedVideo(filePath) {
+  const extension = path.extname(filePath).toLowerCase();
+  if (!SUPPORTED_VIDEO_EXTENSIONS.has(extension)) {
+    throw new Error("Unsupported video format");
+  }
+  const stats = fs$1.statSync(filePath);
+  if (!stats.isFile()) {
+    throw new Error("Dropped item is not a file");
+  }
+  const id = registerSelectedVideo(filePath);
+  return getVideoInfo(filePath, id);
+}
+async function getVideoInfo(filePath, id) {
+  const stats = fs$1.statSync(filePath);
+  const { stdout } = await execFileAsync(
+    ffprobe.path,
     [
       "-v",
       "quiet",
@@ -427,89 +589,95 @@ async function ta(a, e) {
       "json",
       "-show_format",
       "-show_streams",
-      a
+      filePath
     ]
-  ), s = JSON.parse(n), o = s.streams.find(
-    (r) => r.codec_type === "video"
   );
-  if (!o || !o.width || !o.height || !o.codec_name || !s.format.duration)
+  const data = JSON.parse(stdout);
+  const videoStream = data.streams.find(
+    (stream) => stream.codec_type === "video"
+  );
+  if (!videoStream || !videoStream.width || !videoStream.height || !videoStream.codec_name || !data.format.duration) {
     throw new Error("Selected file does not contain valid video metadata");
+  }
   return {
-    id: e,
-    fileName: w.basename(a),
-    videoUrl: `video://${e}`,
-    sizeMB: Number((i.size / (1024 * 1024)).toFixed(2)),
-    duration: Number(s.format.duration),
-    width: o.width,
-    height: o.height,
-    codec: o.codec_name
+    id,
+    fileName: path.basename(filePath),
+    videoUrl: `video://${id}`,
+    sizeMB: Number((stats.size / (1024 * 1024)).toFixed(2)),
+    duration: Number(data.format.duration),
+    width: videoStream.width,
+    height: videoStream.height,
+    codec: videoStream.codec_name
   };
 }
-async function Ma(a, e) {
-  const i = oa(a.videoId);
-  if (!i)
+async function compressVideo(request, onProgress) {
+  const filePath = getSelectedVideoPath(request.videoId);
+  if (!filePath) {
     throw new Error("Video not authorized");
-  const n = await ta(i, a.videoId), s = a.startTime ?? 0, o = a.endTime ?? n.duration;
-  Fa({
-    codec: a.codec,
-    targetSizeMB: a.targetSizeMB,
-    sourceSizeMB: n.sizeMB,
-    duration: n.duration,
-    startTime: s,
-    endTime: o,
-    width: n.width,
-    height: n.height
+  }
+  const videoInfo = await getVideoInfo(filePath, request.videoId);
+  const resolvedStartTime = request.startTime ?? 0;
+  const resolvedEndTime = request.endTime ?? videoInfo.duration;
+  validateCompressionParameters({
+    codec: request.codec,
+    targetSizeMB: request.targetSizeMB,
+    sourceSizeMB: videoInfo.sizeMB,
+    duration: videoInfo.duration,
+    startTime: resolvedStartTime,
+    endTime: resolvedEndTime,
+    width: videoInfo.width,
+    height: videoInfo.height
   });
-  const r = a.useTwoPass ? await qa({
-    filePath: i,
-    targetSizeMB: a.targetSizeMB,
-    duration: n.duration,
-    width: n.width,
-    height: n.height,
-    codec: a.codec,
-    onProgress: e,
-    startTime: s,
-    endTime: o
-  }) : await za({
-    filePath: i,
-    targetSizeMB: a.targetSizeMB,
-    duration: n.duration,
-    width: n.width,
-    height: n.height,
-    codec: a.codec,
-    onProgress: e,
-    startTime: s,
-    endTime: o
+  const outputPath = request.useTwoPass ? await twoPassCompression({
+    filePath,
+    targetSizeMB: request.targetSizeMB,
+    duration: videoInfo.duration,
+    width: videoInfo.width,
+    height: videoInfo.height,
+    codec: request.codec,
+    onProgress,
+    startTime: resolvedStartTime,
+    endTime: resolvedEndTime
+  }) : await onePassCompression({
+    filePath,
+    targetSizeMB: request.targetSizeMB,
+    duration: videoInfo.duration,
+    width: videoInfo.width,
+    height: videoInfo.height,
+    codec: request.codec,
+    onProgress,
+    startTime: resolvedStartTime,
+    endTime: resolvedEndTime
   });
   return {
-    outputId: Ua(r),
-    outputPath: r
+    outputId: registerGeneratedOutput(outputPath),
+    outputPath
   };
 }
-function Ba(a) {
-  return a && a.__esModule && Object.prototype.hasOwnProperty.call(a, "default") ? a.default : a;
+function getDefaultExportFromCjs(x) {
+  return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, "default") ? x["default"] : x;
 }
-var pa = {};
-const Ia = {
+var mimeTypes = {};
+const require$$0 = {
   "application/1d-interleaved-parityfec": {
     source: "iana"
   },
   "application/3gpdash-qoe-report+xml": {
     source: "iana",
     charset: "UTF-8",
-    compressible: !0
+    compressible: true
   },
   "application/3gpp-ims+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/3gpphal+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/3gpphalforms+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/a2l": {
     source: "iana"
@@ -522,55 +690,55 @@ const Ia = {
   },
   "application/activity+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/alto-costmap+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/alto-costmapfilter+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/alto-directory+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/alto-endpointcost+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/alto-endpointcostparams+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/alto-endpointprop+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/alto-endpointpropparams+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/alto-error+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/alto-networkmap+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/alto-networkmapfilter+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/alto-updatestreamcontrol+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/alto-updatestreamparams+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/aml": {
     source: "iana"
@@ -601,21 +769,21 @@ const Ia = {
   },
   "application/atom+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "atom"
     ]
   },
   "application/atomcat+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "atomcat"
     ]
   },
   "application/atomdeleted+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "atomdeleted"
     ]
@@ -625,14 +793,14 @@ const Ia = {
   },
   "application/atomsvc+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "atomsvc"
     ]
   },
   "application/atsc-dwd+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "dwd"
     ]
@@ -642,18 +810,18 @@ const Ia = {
   },
   "application/atsc-held+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "held"
     ]
   },
   "application/atsc-rdt+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/atsc-rsat+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "rsat"
     ]
@@ -663,17 +831,17 @@ const Ia = {
   },
   "application/auth-policy+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/bacnet-xdd+zip": {
     source: "iana",
-    compressible: !1
+    compressible: false
   },
   "application/batch-smtp": {
     source: "iana"
   },
   "application/bdoc": {
-    compressible: !1,
+    compressible: false,
     extensions: [
       "bdoc"
     ]
@@ -681,15 +849,15 @@ const Ia = {
   "application/beep+xml": {
     source: "iana",
     charset: "UTF-8",
-    compressible: !0
+    compressible: true
   },
   "application/calendar+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/calendar+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "xcs"
     ]
@@ -702,7 +870,7 @@ const Ia = {
   },
   "application/captive+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/cbor": {
     source: "iana"
@@ -715,18 +883,18 @@ const Ia = {
   },
   "application/ccmp+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/ccxml+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "ccxml"
     ]
   },
   "application/cdfx+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "cdfx"
     ]
@@ -769,40 +937,40 @@ const Ia = {
   },
   "application/cea-2018+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/cellml+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/cfw": {
     source: "iana"
   },
   "application/city+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/clr": {
     source: "iana"
   },
   "application/clue+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/clue_info+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/cms": {
     source: "iana"
   },
   "application/cnrp+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/coap-group+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/coap-payload": {
     source: "iana"
@@ -812,7 +980,7 @@ const Ia = {
   },
   "application/conference-info+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/cose": {
     source: "iana"
@@ -825,7 +993,7 @@ const Ia = {
   },
   "application/cpl+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "cpl"
     ]
@@ -835,15 +1003,15 @@ const Ia = {
   },
   "application/csta+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/cstadata+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/csvm+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/cu-seeme": {
     source: "apache",
@@ -858,18 +1026,18 @@ const Ia = {
     source: "iana"
   },
   "application/dart": {
-    compressible: !0
+    compressible: true
   },
   "application/dash+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "mpd"
     ]
   },
   "application/dash-patch+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "mpp"
     ]
@@ -879,7 +1047,7 @@ const Ia = {
   },
   "application/davmount+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "davmount"
     ]
@@ -895,18 +1063,18 @@ const Ia = {
   },
   "application/dialog-info+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/dicom": {
     source: "iana"
   },
   "application/dicom+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/dicom+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/dii": {
     source: "iana"
@@ -919,14 +1087,14 @@ const Ia = {
   },
   "application/dns+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/dns-message": {
     source: "iana"
   },
   "application/docbook+xml": {
     source: "apache",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "dbk"
     ]
@@ -936,7 +1104,7 @@ const Ia = {
   },
   "application/dskpp+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/dssc+der": {
     source: "iana",
@@ -946,7 +1114,7 @@ const Ia = {
   },
   "application/dssc+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "xdssc"
     ]
@@ -956,7 +1124,7 @@ const Ia = {
   },
   "application/ecmascript": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "es",
       "ecma"
@@ -967,11 +1135,11 @@ const Ia = {
   },
   "application/edi-x12": {
     source: "iana",
-    compressible: !1
+    compressible: false
   },
   "application/edifact": {
     source: "iana",
-    compressible: !1
+    compressible: false
   },
   "application/efi": {
     source: "iana"
@@ -979,58 +1147,58 @@ const Ia = {
   "application/elm+json": {
     source: "iana",
     charset: "UTF-8",
-    compressible: !0
+    compressible: true
   },
   "application/elm+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/emergencycalldata.cap+xml": {
     source: "iana",
     charset: "UTF-8",
-    compressible: !0
+    compressible: true
   },
   "application/emergencycalldata.comment+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/emergencycalldata.control+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/emergencycalldata.deviceinfo+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/emergencycalldata.ecall.msd": {
     source: "iana"
   },
   "application/emergencycalldata.providerinfo+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/emergencycalldata.serviceinfo+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/emergencycalldata.subscriberinfo+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/emergencycalldata.veds+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/emma+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "emma"
     ]
   },
   "application/emotionml+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "emotionml"
     ]
@@ -1040,11 +1208,11 @@ const Ia = {
   },
   "application/epp+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/epub+zip": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "epub"
     ]
@@ -1060,7 +1228,7 @@ const Ia = {
   },
   "application/expect-ct-report+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/express": {
     source: "iana",
@@ -1076,7 +1244,7 @@ const Ia = {
   },
   "application/fdt+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "fdt"
     ]
@@ -1084,15 +1252,15 @@ const Ia = {
   "application/fhir+json": {
     source: "iana",
     charset: "UTF-8",
-    compressible: !0
+    compressible: true
   },
   "application/fhir+xml": {
     source: "iana",
     charset: "UTF-8",
-    compressible: !0
+    compressible: true
   },
   "application/fido.trusted-apps+json": {
-    compressible: !0
+    compressible: true
   },
   "application/fits": {
     source: "iana"
@@ -1111,15 +1279,15 @@ const Ia = {
   },
   "application/font-woff": {
     source: "iana",
-    compressible: !1
+    compressible: false
   },
   "application/framework-attributes+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/geo+json": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "geojson"
     ]
@@ -1132,21 +1300,21 @@ const Ia = {
   },
   "application/geoxacml+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/gltf-buffer": {
     source: "iana"
   },
   "application/gml+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "gml"
     ]
   },
   "application/gpx+xml": {
     source: "apache",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "gpx"
     ]
@@ -1159,7 +1327,7 @@ const Ia = {
   },
   "application/gzip": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "gz"
     ]
@@ -1169,7 +1337,7 @@ const Ia = {
   },
   "application/held+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/hjson": {
     extensions: [
@@ -1187,11 +1355,11 @@ const Ia = {
   },
   "application/ibe-key-request+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/ibe-pkg-reply+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/ibe-pp-data": {
     source: "iana"
@@ -1202,7 +1370,7 @@ const Ia = {
   "application/im-iscomposing+xml": {
     source: "iana",
     charset: "UTF-8",
-    compressible: !0
+    compressible: true
   },
   "application/index": {
     source: "iana"
@@ -1221,7 +1389,7 @@ const Ia = {
   },
   "application/inkml+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "ink",
       "inkml"
@@ -1244,14 +1412,14 @@ const Ia = {
   },
   "application/its+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "its"
     ]
   },
   "application/java-archive": {
     source: "apache",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "jar",
       "war",
@@ -1260,14 +1428,14 @@ const Ia = {
   },
   "application/java-serialized-object": {
     source: "apache",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "ser"
     ]
   },
   "application/java-vm": {
     source: "apache",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "class"
     ]
@@ -1275,7 +1443,7 @@ const Ia = {
   "application/javascript": {
     source: "iana",
     charset: "UTF-8",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "js",
       "mjs"
@@ -1283,27 +1451,27 @@ const Ia = {
   },
   "application/jf2feed+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/jose": {
     source: "iana"
   },
   "application/jose+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/jrd+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/jscalendar+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/json": {
     source: "iana",
     charset: "UTF-8",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "json",
       "map"
@@ -1311,7 +1479,7 @@ const Ia = {
   },
   "application/json-patch+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/json-seq": {
     source: "iana"
@@ -1323,40 +1491,40 @@ const Ia = {
   },
   "application/jsonml+json": {
     source: "apache",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "jsonml"
     ]
   },
   "application/jwk+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/jwk-set+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/jwt": {
     source: "iana"
   },
   "application/kpml-request+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/kpml-response+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/ld+json": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "jsonld"
     ]
   },
   "application/lgr+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "lgr"
     ]
@@ -1366,22 +1534,22 @@ const Ia = {
   },
   "application/load-control+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/lost+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "lostxml"
     ]
   },
   "application/lostsync+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/lpf+zip": {
     source: "iana",
-    compressible: !1
+    compressible: false
   },
   "application/lxf": {
     source: "iana"
@@ -1403,7 +1571,7 @@ const Ia = {
   },
   "application/mads+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "mads"
     ]
@@ -1411,7 +1579,7 @@ const Ia = {
   "application/manifest+json": {
     source: "iana",
     charset: "UTF-8",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "webmanifest"
     ]
@@ -1424,7 +1592,7 @@ const Ia = {
   },
   "application/marcxml+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "mrcx"
     ]
@@ -1439,62 +1607,62 @@ const Ia = {
   },
   "application/mathml+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "mathml"
     ]
   },
   "application/mathml-content+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/mathml-presentation+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/mbms-associated-procedure-description+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/mbms-deregister+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/mbms-envelope+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/mbms-msk+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/mbms-msk-response+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/mbms-protection-description+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/mbms-reception-report+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/mbms-register+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/mbms-register-response+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/mbms-schedule+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/mbms-user-service-description+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/mbox": {
     source: "iana",
@@ -1504,43 +1672,43 @@ const Ia = {
   },
   "application/media-policy-dataset+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "mpf"
     ]
   },
   "application/media_control+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/mediaservercontrol+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "mscml"
     ]
   },
   "application/merge-patch+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/metalink+xml": {
     source: "apache",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "metalink"
     ]
   },
   "application/metalink4+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "meta4"
     ]
   },
   "application/mets+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "mets"
     ]
@@ -1559,21 +1727,21 @@ const Ia = {
   },
   "application/mmt-aei+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "maei"
     ]
   },
   "application/mmt-usd+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "musd"
     ]
   },
   "application/mods+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "mods"
     ]
@@ -1615,25 +1783,25 @@ const Ia = {
   },
   "application/mrb-consumer+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/mrb-publish+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/msc-ivr+xml": {
     source: "iana",
     charset: "UTF-8",
-    compressible: !0
+    compressible: true
   },
   "application/msc-mixer+xml": {
     source: "iana",
     charset: "UTF-8",
-    compressible: !0
+    compressible: true
   },
   "application/msword": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "doc",
       "dot"
@@ -1641,7 +1809,7 @@ const Ia = {
   },
   "application/mud+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/multipart-core": {
     source: "iana"
@@ -1680,7 +1848,7 @@ const Ia = {
   },
   "application/nlsml+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/node": {
     source: "iana",
@@ -1705,7 +1873,7 @@ const Ia = {
   },
   "application/octet-stream": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "bin",
       "dms",
@@ -1739,28 +1907,28 @@ const Ia = {
   },
   "application/odm+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/odx": {
     source: "iana"
   },
   "application/oebps-package+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "opf"
     ]
   },
   "application/ogg": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "ogx"
     ]
   },
   "application/omdoc+xml": {
     source: "apache",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "omdoc"
     ]
@@ -1776,7 +1944,7 @@ const Ia = {
   },
   "application/opc-nodeset+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/oscore": {
     source: "iana"
@@ -1792,11 +1960,11 @@ const Ia = {
   },
   "application/p21+zip": {
     source: "iana",
-    compressible: !1
+    compressible: false
   },
   "application/p2p-overlay+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "relo"
     ]
@@ -1809,14 +1977,14 @@ const Ia = {
   },
   "application/patch-ops-error+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "xer"
     ]
   },
   "application/pdf": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "pdf"
     ]
@@ -1829,7 +1997,7 @@ const Ia = {
   },
   "application/pgp-encrypted": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "pgp"
     ]
@@ -1856,12 +2024,12 @@ const Ia = {
   "application/pidf+xml": {
     source: "iana",
     charset: "UTF-8",
-    compressible: !0
+    compressible: true
   },
   "application/pidf-diff+xml": {
     source: "iana",
     charset: "UTF-8",
-    compressible: !0
+    compressible: true
   },
   "application/pkcs10": {
     source: "iana",
@@ -1926,7 +2094,7 @@ const Ia = {
   },
   "application/pls+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "pls"
     ]
@@ -1934,11 +2102,11 @@ const Ia = {
   "application/poc-settings+xml": {
     source: "iana",
     charset: "UTF-8",
-    compressible: !0
+    compressible: true
   },
   "application/postscript": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "ai",
       "eps",
@@ -1947,19 +2115,19 @@ const Ia = {
   },
   "application/ppsp-tracker+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/problem+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/problem+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/provenance+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "provx"
     ]
@@ -1979,7 +2147,7 @@ const Ia = {
   },
   "application/prs.hpub+zip": {
     source: "iana",
-    compressible: !1
+    compressible: false
   },
   "application/prs.nprend": {
     source: "iana"
@@ -1992,24 +2160,24 @@ const Ia = {
   },
   "application/prs.xsf+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/pskc+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "pskcxml"
     ]
   },
   "application/pvd+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/qsig": {
     source: "iana"
   },
   "application/raml+yaml": {
-    compressible: !0,
+    compressible: true,
     extensions: [
       "raml"
     ]
@@ -2019,11 +2187,11 @@ const Ia = {
   },
   "application/rdap+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/rdf+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "rdf",
       "owl"
@@ -2031,7 +2199,7 @@ const Ia = {
   },
   "application/reginfo+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "rif"
     ]
@@ -2047,57 +2215,57 @@ const Ia = {
   },
   "application/reputon+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/resource-lists+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "rl"
     ]
   },
   "application/resource-lists-diff+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "rld"
     ]
   },
   "application/rfc+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/riscos": {
     source: "iana"
   },
   "application/rlmi+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/rls-services+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "rs"
     ]
   },
   "application/route-apd+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "rapd"
     ]
   },
   "application/route-s-tsid+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "sls"
     ]
   },
   "application/route-usd+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "rusd"
     ]
@@ -2128,21 +2296,21 @@ const Ia = {
   },
   "application/rsd+xml": {
     source: "apache",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "rsd"
     ]
   },
   "application/rss+xml": {
     source: "apache",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "rss"
     ]
   },
   "application/rtf": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "rtf"
     ]
@@ -2155,37 +2323,37 @@ const Ia = {
   },
   "application/samlassertion+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/samlmetadata+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/sarif+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/sarif-external-properties+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/sbe": {
     source: "iana"
   },
   "application/sbml+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "sbml"
     ]
   },
   "application/scaip+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/scim+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/scvp-cv-request": {
     source: "iana",
@@ -2225,11 +2393,11 @@ const Ia = {
   },
   "application/senml+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/senml+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "senmlx"
     ]
@@ -2239,7 +2407,7 @@ const Ia = {
   },
   "application/senml-etch+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/senml-exi": {
     source: "iana"
@@ -2249,11 +2417,11 @@ const Ia = {
   },
   "application/sensml+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/sensml+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "sensmlx"
     ]
@@ -2263,7 +2431,7 @@ const Ia = {
   },
   "application/sep+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/sep-exi": {
     source: "iana"
@@ -2297,7 +2465,7 @@ const Ia = {
   },
   "application/shf+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "shf"
     ]
@@ -2311,7 +2479,7 @@ const Ia = {
   },
   "application/simple-filter+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/simple-message-summary": {
     source: "iana"
@@ -2330,7 +2498,7 @@ const Ia = {
   },
   "application/smil+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "smi",
       "smil"
@@ -2344,7 +2512,7 @@ const Ia = {
   },
   "application/soap+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/sparql-query": {
     source: "iana",
@@ -2354,18 +2522,18 @@ const Ia = {
   },
   "application/sparql-results+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "srx"
     ]
   },
   "application/spdx+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/spirits-event+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/sql": {
     source: "iana"
@@ -2378,39 +2546,39 @@ const Ia = {
   },
   "application/srgs+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "grxml"
     ]
   },
   "application/sru+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "sru"
     ]
   },
   "application/ssdl+xml": {
     source: "apache",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "ssdl"
     ]
   },
   "application/ssml+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "ssml"
     ]
   },
   "application/stix+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/swid+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "swidtag"
     ]
@@ -2449,19 +2617,19 @@ const Ia = {
     source: "iana"
   },
   "application/tar": {
-    compressible: !0
+    compressible: true
   },
   "application/taxii+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/td+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/tei+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "tei",
       "teicorpus"
@@ -2472,7 +2640,7 @@ const Ia = {
   },
   "application/thraud+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "tfi"
     ]
@@ -2494,7 +2662,7 @@ const Ia = {
   },
   "application/tlsrpt+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/tnauthlist": {
     source: "iana"
@@ -2503,7 +2671,7 @@ const Ia = {
     source: "iana"
   },
   "application/toml": {
-    compressible: !0,
+    compressible: true,
     extensions: [
       "toml"
     ]
@@ -2519,7 +2687,7 @@ const Ia = {
   },
   "application/ttml+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "ttml"
     ]
@@ -2534,7 +2702,7 @@ const Ia = {
     source: "iana"
   },
   "application/ubjson": {
-    compressible: !1,
+    compressible: false,
     extensions: [
       "ubj"
     ]
@@ -2544,33 +2712,33 @@ const Ia = {
   },
   "application/urc-grpsheet+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/urc-ressheet+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "rsheet"
     ]
   },
   "application/urc-targetdesc+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "td"
     ]
   },
   "application/urc-uisocketdesc+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vcard+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vcard+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vemmi": {
     source: "iana"
@@ -2580,18 +2748,18 @@ const Ia = {
   },
   "application/vnd.1000minds.decision-model+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "1km"
     ]
   },
   "application/vnd.3gpp-prose+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.3gpp-prose-pc3ch+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.3gpp-v2x-local-service-information": {
     source: "iana"
@@ -2601,15 +2769,15 @@ const Ia = {
   },
   "application/vnd.3gpp.access-transfer-events+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.3gpp.bsf+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.3gpp.gmop+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.3gpp.gtpc": {
     source: "iana"
@@ -2625,109 +2793,109 @@ const Ia = {
   },
   "application/vnd.3gpp.mcdata-affiliation-command+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.3gpp.mcdata-info+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.3gpp.mcdata-payload": {
     source: "iana"
   },
   "application/vnd.3gpp.mcdata-service-config+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.3gpp.mcdata-signalling": {
     source: "iana"
   },
   "application/vnd.3gpp.mcdata-ue-config+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.3gpp.mcdata-user-profile+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.3gpp.mcptt-affiliation-command+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.3gpp.mcptt-floor-request+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.3gpp.mcptt-info+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.3gpp.mcptt-location-info+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.3gpp.mcptt-mbms-usage-info+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.3gpp.mcptt-service-config+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.3gpp.mcptt-signed+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.3gpp.mcptt-ue-config+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.3gpp.mcptt-ue-init-config+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.3gpp.mcptt-user-profile+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.3gpp.mcvideo-affiliation-command+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.3gpp.mcvideo-affiliation-info+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.3gpp.mcvideo-info+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.3gpp.mcvideo-location-info+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.3gpp.mcvideo-mbms-usage-info+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.3gpp.mcvideo-service-config+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.3gpp.mcvideo-transmission-request+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.3gpp.mcvideo-ue-config+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.3gpp.mcvideo-user-profile+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.3gpp.mid-call+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.3gpp.ngap": {
     source: "iana"
@@ -2761,27 +2929,27 @@ const Ia = {
   },
   "application/vnd.3gpp.sms+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.3gpp.srvcc-ext+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.3gpp.srvcc-info+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.3gpp.state-and-event-info+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.3gpp.ussd+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.3gpp2.bcmcsinfo+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.3gpp2.sms": {
     source: "iana"
@@ -2828,7 +2996,7 @@ const Ia = {
   },
   "application/vnd.adobe.air-application-installer-package+zip": {
     source: "apache",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "air"
     ]
@@ -2854,7 +3022,7 @@ const Ia = {
   },
   "application/vnd.adobe.xdp+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "xdp"
     ]
@@ -2936,7 +3104,7 @@ const Ia = {
   },
   "application/vnd.amadeus+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.amazon.ebook": {
     source: "apache",
@@ -2961,14 +3129,14 @@ const Ia = {
   },
   "application/vnd.amundsen.maze+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.android.ota": {
     source: "iana"
   },
   "application/vnd.android.package-archive": {
     source: "apache",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "apk"
     ]
@@ -3011,19 +3179,19 @@ const Ia = {
   },
   "application/vnd.api+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.aplextor.warrp+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.apothekende.reservation+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.apple.installer+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "mpkg"
     ]
@@ -3053,7 +3221,7 @@ const Ia = {
     ]
   },
   "application/vnd.apple.pkpass": {
-    compressible: !1,
+    compressible: false,
     extensions: [
       "pkpass"
     ]
@@ -3069,7 +3237,7 @@ const Ia = {
   },
   "application/vnd.artisan+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.artsquare": {
     source: "iana"
@@ -3091,15 +3259,15 @@ const Ia = {
   },
   "application/vnd.avalon+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.avistar+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.balsamiq.bmml+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "bmml"
     ]
@@ -3118,18 +3286,18 @@ const Ia = {
   },
   "application/vnd.bbf.usp.msg+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.bekitzur-stech+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.bint.med-content": {
     source: "iana"
   },
   "application/vnd.biopax.rdf+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.blink-idb-value-wrapper": {
     source: "iana"
@@ -3166,7 +3334,7 @@ const Ia = {
   },
   "application/vnd.byu.uapi+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.cab-jscript": {
     source: "iana"
@@ -3179,7 +3347,7 @@ const Ia = {
   },
   "application/vnd.capasystems-pg+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.cendio.thinlinc.clientconf": {
     source: "iana"
@@ -3189,7 +3357,7 @@ const Ia = {
   },
   "application/vnd.chemdraw+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "cdxml"
     ]
@@ -3217,7 +3385,7 @@ const Ia = {
   },
   "application/vnd.citationstyles.style+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "csl"
     ]
@@ -3279,19 +3447,19 @@ const Ia = {
   },
   "application/vnd.collection+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.collection.doc+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.collection.next+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.comicbook+zip": {
     source: "iana",
-    compressible: !1
+    compressible: false
   },
   "application/vnd.comicbook-rar": {
     source: "iana"
@@ -3313,7 +3481,7 @@ const Ia = {
   },
   "application/vnd.coreos.ignition+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.cosmocaller": {
     source: "iana",
@@ -3353,14 +3521,14 @@ const Ia = {
   },
   "application/vnd.criticaltools.wbs+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "wbs"
     ]
   },
   "application/vnd.cryptii.pipe+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.crypto-shade-file": {
     source: "iana"
@@ -3379,7 +3547,7 @@ const Ia = {
   },
   "application/vnd.ctct.ws+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.cups-pdf": {
     source: "iana"
@@ -3416,22 +3584,22 @@ const Ia = {
   },
   "application/vnd.cyan.dean.root+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.cybank": {
     source: "iana"
   },
   "application/vnd.cyclonedx+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.cyclonedx+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.d2l.coursepackage1p0+zip": {
     source: "iana",
-    compressible: !1
+    compressible: false
   },
   "application/vnd.d3m-dataset": {
     source: "iana"
@@ -3441,7 +3609,7 @@ const Ia = {
   },
   "application/vnd.dart": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "dart"
     ]
@@ -3454,11 +3622,11 @@ const Ia = {
   },
   "application/vnd.datapackage+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.dataresource+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.dbf": {
     source: "iana",
@@ -3480,7 +3648,7 @@ const Ia = {
   },
   "application/vnd.dece.ttml+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "uvt",
       "uvvt"
@@ -3514,7 +3682,7 @@ const Ia = {
   },
   "application/vnd.dm.delegation+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.dna": {
     source: "iana",
@@ -3524,7 +3692,7 @@ const Ia = {
   },
   "application/vnd.document+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.dolby.mlp": {
     source: "apache",
@@ -3555,7 +3723,7 @@ const Ia = {
   },
   "application/vnd.drive+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.ds-keypoint": {
     source: "apache",
@@ -3580,7 +3748,7 @@ const Ia = {
   },
   "application/vnd.dvb.dvbisl+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.dvb.dvbj": {
     source: "iana"
@@ -3611,31 +3779,31 @@ const Ia = {
   },
   "application/vnd.dvb.notif-aggregate-root+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.dvb.notif-container+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.dvb.notif-generic+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.dvb.notif-ia-msglist+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.dvb.notif-ia-registration-request+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.dvb.notif-ia-registration-response+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.dvb.notif-init+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.dvb.pfr": {
     source: "iana"
@@ -3669,7 +3837,7 @@ const Ia = {
   },
   "application/vnd.eclipse.ditto+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.ecowin.chart": {
     source: "iana",
@@ -3700,7 +3868,7 @@ const Ia = {
   },
   "application/vnd.emclient.accessrequest+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.enliven": {
     source: "iana",
@@ -3713,7 +3881,7 @@ const Ia = {
   },
   "application/vnd.eprints.data+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.epson.esf": {
     source: "iana",
@@ -3750,11 +3918,11 @@ const Ia = {
   },
   "application/vnd.espass-espass+zip": {
     source: "iana",
-    compressible: !1
+    compressible: false
   },
   "application/vnd.eszigno3+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "es3",
       "et3"
@@ -3762,92 +3930,92 @@ const Ia = {
   },
   "application/vnd.etsi.aoc+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.etsi.asic-e+zip": {
     source: "iana",
-    compressible: !1
+    compressible: false
   },
   "application/vnd.etsi.asic-s+zip": {
     source: "iana",
-    compressible: !1
+    compressible: false
   },
   "application/vnd.etsi.cug+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.etsi.iptvcommand+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.etsi.iptvdiscovery+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.etsi.iptvprofile+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.etsi.iptvsad-bc+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.etsi.iptvsad-cod+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.etsi.iptvsad-npvr+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.etsi.iptvservice+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.etsi.iptvsync+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.etsi.iptvueprofile+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.etsi.mcid+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.etsi.mheg5": {
     source: "iana"
   },
   "application/vnd.etsi.overload-control-policy-dataset+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.etsi.pstn+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.etsi.sci+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.etsi.simservs+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.etsi.timestamp-token": {
     source: "iana"
   },
   "application/vnd.etsi.tsl+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.etsi.tsl.der": {
     source: "iana"
   },
   "application/vnd.eu.kasparian.car+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.eudora.data": {
     source: "iana"
@@ -3863,7 +4031,7 @@ const Ia = {
   },
   "application/vnd.exstream-empower+zip": {
     source: "iana",
-    compressible: !1
+    compressible: false
   },
   "application/vnd.exstream-package": {
     source: "iana"
@@ -3885,7 +4053,7 @@ const Ia = {
   },
   "application/vnd.familysearch.gedcom+zip": {
     source: "iana",
-    compressible: !1
+    compressible: false
   },
   "application/vnd.fastcopy-disk-image": {
     source: "iana"
@@ -3914,7 +4082,7 @@ const Ia = {
   },
   "application/vnd.ficlab.flb+zip": {
     source: "iana",
-    compressible: !1
+    compressible: false
   },
   "application/vnd.filmit.zfc": {
     source: "iana"
@@ -3978,7 +4146,7 @@ const Ia = {
   },
   "application/vnd.fujifilm.fb.jfi+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.fujitsu.oasys": {
     source: "iana",
@@ -4048,7 +4216,7 @@ const Ia = {
   },
   "application/vnd.futoin+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.fuzzysheet": {
     source: "iana",
@@ -4064,15 +4232,15 @@ const Ia = {
   },
   "application/vnd.gentics.grd+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.geo+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.geocube+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.geogebra.file": {
     source: "iana",
@@ -4130,48 +4298,48 @@ const Ia = {
     ]
   },
   "application/vnd.google-apps.document": {
-    compressible: !1,
+    compressible: false,
     extensions: [
       "gdoc"
     ]
   },
   "application/vnd.google-apps.presentation": {
-    compressible: !1,
+    compressible: false,
     extensions: [
       "gslides"
     ]
   },
   "application/vnd.google-apps.spreadsheet": {
-    compressible: !1,
+    compressible: false,
     extensions: [
       "gsheet"
     ]
   },
   "application/vnd.google-earth.kml+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "kml"
     ]
   },
   "application/vnd.google-earth.kmz": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "kmz"
     ]
   },
   "application/vnd.gov.sk.e-form+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.gov.sk.e-form+zip": {
     source: "iana",
-    compressible: !1
+    compressible: false
   },
   "application/vnd.gov.sk.xmldatacontainer+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.grafeq": {
     source: "iana",
@@ -4227,18 +4395,18 @@ const Ia = {
   },
   "application/vnd.hal+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.hal+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "hal"
     ]
   },
   "application/vnd.handheld-entertainment+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "zmm"
     ]
@@ -4251,7 +4419,7 @@ const Ia = {
   },
   "application/vnd.hc+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.hcl-bireports": {
     source: "iana"
@@ -4261,7 +4429,7 @@ const Ia = {
   },
   "application/vnd.heroku+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.hhe.lesson-player": {
     source: "iana",
@@ -4272,12 +4440,12 @@ const Ia = {
   "application/vnd.hl7cda+xml": {
     source: "iana",
     charset: "UTF-8",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.hl7v2+xml": {
     source: "iana",
     charset: "UTF-8",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.hp-hpgl": {
     source: "iana",
@@ -4326,15 +4494,15 @@ const Ia = {
   },
   "application/vnd.hyper+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.hyper-item+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.hyperdrive+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.hzn-3d-crossword": {
     source: "iana"
@@ -4389,11 +4557,11 @@ const Ia = {
   },
   "application/vnd.imagemeter.folder+zip": {
     source: "iana",
-    compressible: !1
+    compressible: false
   },
   "application/vnd.imagemeter.image+zip": {
     source: "iana",
-    compressible: !1
+    compressible: false
   },
   "application/vnd.immervision-ivp": {
     source: "iana",
@@ -4418,31 +4586,31 @@ const Ia = {
   },
   "application/vnd.ims.lis.v2.result+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.ims.lti.v2.toolconsumerprofile+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.ims.lti.v2.toolproxy+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.ims.lti.v2.toolproxy.id+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.ims.lti.v2.toolsettings+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.ims.lti.v2.toolsettings.simple+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.informedcontrol.rms+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.informix-visionary": {
     source: "iana"
@@ -4452,7 +4620,7 @@ const Ia = {
   },
   "application/vnd.infotech.project+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.innopath.wamp.notification": {
     source: "iana"
@@ -4496,31 +4664,31 @@ const Ia = {
   },
   "application/vnd.iptc.g2.catalogitem+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.iptc.g2.conceptitem+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.iptc.g2.knowledgeitem+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.iptc.g2.newsitem+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.iptc.g2.newsmessage+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.iptc.g2.packageitem+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.iptc.g2.planningitem+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.ipunplugged.rcprofile": {
     source: "iana",
@@ -4530,7 +4698,7 @@ const Ia = {
   },
   "application/vnd.irepository.package+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "irp"
     ]
@@ -4549,7 +4717,7 @@ const Ia = {
   },
   "application/vnd.iso11783-10+zip": {
     source: "iana",
-    compressible: !1
+    compressible: false
   },
   "application/vnd.jam": {
     source: "iana",
@@ -4698,11 +4866,11 @@ const Ia = {
   },
   "application/vnd.las.las+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.las.las+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "lasxml"
     ]
@@ -4712,11 +4880,11 @@ const Ia = {
   },
   "application/vnd.leap+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.liberty-request+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.llamagraphics.life-balance.desktop": {
     source: "iana",
@@ -4726,14 +4894,14 @@ const Ia = {
   },
   "application/vnd.llamagraphics.life-balance.exchange+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "lbe"
     ]
   },
   "application/vnd.logipipe.circuit+zip": {
     source: "iana",
-    compressible: !1
+    compressible: false
   },
   "application/vnd.loom": {
     source: "iana"
@@ -4794,26 +4962,26 @@ const Ia = {
   },
   "application/vnd.marlin.drm.actiontoken+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.marlin.drm.conftoken+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.marlin.drm.license+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.marlin.drm.mdcf": {
     source: "iana"
   },
   "application/vnd.mason+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.maxar.archive.3tz+zip": {
     source: "iana",
-    compressible: !1
+    compressible: false
   },
   "application/vnd.maxmind.maxmind-db": {
     source: "iana"
@@ -4853,7 +5021,7 @@ const Ia = {
   },
   "application/vnd.micro+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.micrografx.flo": {
     source: "iana",
@@ -4875,7 +5043,7 @@ const Ia = {
   },
   "application/vnd.miele+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.mif": {
     source: "iana",
@@ -4969,7 +5137,7 @@ const Ia = {
   },
   "application/vnd.mozilla.xul+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "xul"
     ]
@@ -4997,7 +5165,7 @@ const Ia = {
   },
   "application/vnd.ms-excel": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "xls",
       "xlm",
@@ -5033,7 +5201,7 @@ const Ia = {
   },
   "application/vnd.ms-fontobject": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "eot"
     ]
@@ -5058,7 +5226,7 @@ const Ia = {
   },
   "application/vnd.ms-office.activex+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.ms-officetheme": {
     source: "iana",
@@ -5068,10 +5236,10 @@ const Ia = {
   },
   "application/vnd.ms-opentype": {
     source: "apache",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.ms-outlook": {
-    compressible: !1,
+    compressible: false,
     extensions: [
       "msg"
     ]
@@ -5093,11 +5261,11 @@ const Ia = {
   },
   "application/vnd.ms-playready.initiator+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.ms-powerpoint": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "ppt",
       "pps",
@@ -5136,15 +5304,15 @@ const Ia = {
   },
   "application/vnd.ms-printdevicecapabilities+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.ms-printing.printticket+xml": {
     source: "apache",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.ms-printschematicket+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.ms-project": {
     source: "iana",
@@ -5209,7 +5377,7 @@ const Ia = {
   },
   "application/vnd.ms-xpsdocument": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "xps"
     ]
@@ -5255,7 +5423,7 @@ const Ia = {
   },
   "application/vnd.nacamar.ybrid+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.ncd.control": {
     source: "iana"
@@ -5265,7 +5433,7 @@ const Ia = {
   },
   "application/vnd.nearst.inv+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.nebumind.line": {
     source: "iana"
@@ -5324,11 +5492,11 @@ const Ia = {
   },
   "application/vnd.nokia.conml+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.nokia.iptv.config+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.nokia.isds-radio-presets": {
     source: "iana"
@@ -5338,15 +5506,15 @@ const Ia = {
   },
   "application/vnd.nokia.landmark+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.nokia.landmarkcollection+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.nokia.n-gage.ac+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "ac"
     ]
@@ -5371,7 +5539,7 @@ const Ia = {
   },
   "application/vnd.nokia.pcd+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.nokia.radio-preset": {
     source: "iana",
@@ -5450,7 +5618,7 @@ const Ia = {
   },
   "application/vnd.oasis.opendocument.graphics": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "odg"
     ]
@@ -5475,7 +5643,7 @@ const Ia = {
   },
   "application/vnd.oasis.opendocument.presentation": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "odp"
     ]
@@ -5488,7 +5656,7 @@ const Ia = {
   },
   "application/vnd.oasis.opendocument.spreadsheet": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "ods"
     ]
@@ -5501,7 +5669,7 @@ const Ia = {
   },
   "application/vnd.oasis.opendocument.text": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "odt"
     ]
@@ -5532,53 +5700,53 @@ const Ia = {
   },
   "application/vnd.oci.image.manifest.v1+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.oftn.l10n+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.oipf.contentaccessdownload+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.oipf.contentaccessstreaming+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.oipf.cspg-hexbinary": {
     source: "iana"
   },
   "application/vnd.oipf.dae.svg+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.oipf.dae.xhtml+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.oipf.mippvcontrolmessage+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.oipf.pae.gem": {
     source: "iana"
   },
   "application/vnd.oipf.spdiscovery+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.oipf.spdlist+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.oipf.ueprofile+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.oipf.userprofile+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.olpc-sugar": {
     source: "iana",
@@ -5597,22 +5765,22 @@ const Ia = {
   },
   "application/vnd.oma.bcast.associated-procedure-parameter+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.oma.bcast.drm-trigger+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.oma.bcast.imd+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.oma.bcast.ltkm": {
     source: "iana"
   },
   "application/vnd.oma.bcast.notification+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.oma.bcast.provisioningtrigger": {
     source: "iana"
@@ -5622,7 +5790,7 @@ const Ia = {
   },
   "application/vnd.oma.bcast.sgdd+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.oma.bcast.sgdu": {
     source: "iana"
@@ -5632,34 +5800,34 @@ const Ia = {
   },
   "application/vnd.oma.bcast.smartcard-trigger+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.oma.bcast.sprov+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.oma.bcast.stkm": {
     source: "iana"
   },
   "application/vnd.oma.cab-address-book+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.oma.cab-feature-handler+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.oma.cab-pcc+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.oma.cab-subs-invite+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.oma.cab-user-prefs+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.oma.dcd": {
     source: "iana"
@@ -5669,78 +5837,78 @@ const Ia = {
   },
   "application/vnd.oma.dd2+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "dd2"
     ]
   },
   "application/vnd.oma.drm.risd+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.oma.group-usage-list+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.oma.lwm2m+cbor": {
     source: "iana"
   },
   "application/vnd.oma.lwm2m+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.oma.lwm2m+tlv": {
     source: "iana"
   },
   "application/vnd.oma.pal+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.oma.poc.detailed-progress-report+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.oma.poc.final-report+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.oma.poc.groups+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.oma.poc.invocation-descriptor+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.oma.poc.optimized-progress-report+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.oma.push": {
     source: "iana"
   },
   "application/vnd.oma.scidm.messages+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.oma.xcap-directory+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.omads-email+xml": {
     source: "iana",
     charset: "UTF-8",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.omads-file+xml": {
     source: "iana",
     charset: "UTF-8",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.omads-folder+xml": {
     source: "iana",
     charset: "UTF-8",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.omaloc-supl-init": {
     source: "iana"
@@ -5765,7 +5933,7 @@ const Ia = {
   },
   "application/vnd.openblox.game+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "obgx"
     ]
@@ -5784,7 +5952,7 @@ const Ia = {
   },
   "application/vnd.openstreetmap.data+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "osm"
     ]
@@ -5794,78 +5962,78 @@ const Ia = {
   },
   "application/vnd.openxmlformats-officedocument.custom-properties+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.customxmlproperties+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.drawing+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.drawingml.chart+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.drawingml.chartshapes+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.drawingml.diagramcolors+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.drawingml.diagramdata+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.drawingml.diagramlayout+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.drawingml.diagramstyle+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.extended-properties+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.presentationml.commentauthors+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.presentationml.comments+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.presentationml.handoutmaster+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.presentationml.notesmaster+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.presentationml.notesslide+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.presentationml.presentation": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "pptx"
     ]
   },
   "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.presentationml.presprops+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.presentationml.slide": {
     source: "iana",
@@ -5875,15 +6043,15 @@ const Ia = {
   },
   "application/vnd.openxmlformats-officedocument.presentationml.slide+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.presentationml.slidelayout+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.presentationml.slidemaster+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.presentationml.slideshow": {
     source: "iana",
@@ -5893,19 +6061,19 @@ const Ia = {
   },
   "application/vnd.openxmlformats-officedocument.presentationml.slideshow.main+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.presentationml.slideupdateinfo+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.presentationml.tablestyles+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.presentationml.tags+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.presentationml.template": {
     source: "iana",
@@ -5915,90 +6083,90 @@ const Ia = {
   },
   "application/vnd.openxmlformats-officedocument.presentationml.template.main+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.presentationml.viewprops+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.spreadsheetml.calcchain+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.spreadsheetml.chartsheet+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.spreadsheetml.connections+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.spreadsheetml.dialogsheet+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.spreadsheetml.externallink+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.spreadsheetml.pivotcachedefinition+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.spreadsheetml.pivotcacherecords+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.spreadsheetml.pivottable+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.spreadsheetml.querytable+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.spreadsheetml.revisionheaders+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.spreadsheetml.revisionlog+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedstrings+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "xlsx"
     ]
   },
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheetmetadata+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.spreadsheetml.tablesinglecells+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.spreadsheetml.template": {
     source: "iana",
@@ -6008,77 +6176,77 @@ const Ia = {
   },
   "application/vnd.openxmlformats-officedocument.spreadsheetml.template.main+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.spreadsheetml.usernames+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.spreadsheetml.volatiledependencies+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.theme+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.themeoverride+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.vmldrawing": {
     source: "iana"
   },
   "application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "docx"
     ]
   },
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.wordprocessingml.fonttable+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.wordprocessingml.template": {
     source: "iana",
@@ -6088,27 +6256,27 @@ const Ia = {
   },
   "application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-officedocument.wordprocessingml.websettings+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-package.core-properties+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-package.digital-signature-xmlsignature+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.openxmlformats-package.relationships+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.oracle.resource+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.orange.indata": {
     source: "iana"
@@ -6139,14 +6307,14 @@ const Ia = {
   },
   "application/vnd.otps.ct-kip+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.oxli.countgraph": {
     source: "iana"
   },
   "application/vnd.pagerduty+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.palm": {
     source: "iana",
@@ -6206,7 +6374,7 @@ const Ia = {
   },
   "application/vnd.poc.group-advertisement+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.pocketlearn": {
     source: "iana",
@@ -6270,7 +6438,7 @@ const Ia = {
   },
   "application/vnd.pwg-xhtml-print+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.qualcomm.brew-app-res": {
     source: "iana"
@@ -6294,63 +6462,63 @@ const Ia = {
   },
   "application/vnd.radisys.moml+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.radisys.msml+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.radisys.msml-audit+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.radisys.msml-audit-conf+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.radisys.msml-audit-conn+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.radisys.msml-audit-dialog+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.radisys.msml-audit-stream+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.radisys.msml-conf+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.radisys.msml-dialog+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.radisys.msml-dialog-base+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.radisys.msml-dialog-fax-detect+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.radisys.msml-dialog-fax-sendrecv+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.radisys.msml-dialog-group+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.radisys.msml-dialog-speech+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.radisys.msml-dialog-transform+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.rainstor.data": {
     source: "iana"
@@ -6378,7 +6546,7 @@ const Ia = {
   },
   "application/vnd.recordare.musicxml+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "musicxml"
     ]
@@ -6391,7 +6559,7 @@ const Ia = {
   },
   "application/vnd.restful+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.rig.cryptonote": {
     source: "iana",
@@ -6419,7 +6587,7 @@ const Ia = {
   },
   "application/vnd.route66.link66+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "link66"
     ]
@@ -6492,7 +6660,7 @@ const Ia = {
   },
   "application/vnd.seis+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.sema": {
     source: "iana",
@@ -6541,11 +6709,11 @@ const Ia = {
   },
   "application/vnd.shootproof+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.shopkick+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.shp": {
     source: "iana"
@@ -6565,7 +6733,7 @@ const Ia = {
   },
   "application/vnd.siren+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.smaf": {
     source: "iana",
@@ -6587,7 +6755,7 @@ const Ia = {
   },
   "application/vnd.software602.filler.form+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "fo"
     ]
@@ -6597,7 +6765,7 @@ const Ia = {
   },
   "application/vnd.solent.sdkm+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "sdkm",
       "sdkd"
@@ -6681,7 +6849,7 @@ const Ia = {
   },
   "application/vnd.sun.wadl+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "wadl"
     ]
@@ -6764,11 +6932,11 @@ const Ia = {
   },
   "application/vnd.sycle+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.syft+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.symbian.install": {
     source: "apache",
@@ -6780,7 +6948,7 @@ const Ia = {
   "application/vnd.syncml+xml": {
     source: "iana",
     charset: "UTF-8",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "xsm"
     ]
@@ -6795,7 +6963,7 @@ const Ia = {
   "application/vnd.syncml.dm+xml": {
     source: "iana",
     charset: "UTF-8",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "xdm"
     ]
@@ -6809,7 +6977,7 @@ const Ia = {
   "application/vnd.syncml.dmddf+xml": {
     source: "iana",
     charset: "UTF-8",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "ddf"
     ]
@@ -6820,14 +6988,14 @@ const Ia = {
   "application/vnd.syncml.dmtnds+xml": {
     source: "iana",
     charset: "UTF-8",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.syncml.ds.notification": {
     source: "iana"
   },
   "application/vnd.tableschema+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.tao.intent-module-archive": {
     source: "iana",
@@ -6845,11 +7013,11 @@ const Ia = {
   },
   "application/vnd.think-cell.ppttc+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.tmd.mediaflex.api+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.tml": {
     source: "iana"
@@ -6914,7 +7082,7 @@ const Ia = {
   },
   "application/vnd.uoml+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "uoml"
     ]
@@ -6978,14 +7146,14 @@ const Ia = {
   },
   "application/vnd.vel+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.verimatrix.vcas": {
     source: "iana"
   },
   "application/vnd.veritone.aion+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.veryant.thin": {
     source: "iana"
@@ -7107,15 +7275,15 @@ const Ia = {
   },
   "application/vnd.wv.csp+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.wv.ssp+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.xacml+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.xara": {
     source: "iana",
@@ -7134,7 +7302,7 @@ const Ia = {
   },
   "application/vnd.xmi+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vnd.xmpie.cpkg": {
     source: "iana"
@@ -7177,7 +7345,7 @@ const Ia = {
   },
   "application/vnd.yamaha.openscoreformat.osfpvg+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "osfpvg"
     ]
@@ -7224,42 +7392,42 @@ const Ia = {
   },
   "application/vnd.zzazz.deck+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "zaz"
     ]
   },
   "application/voicexml+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "vxml"
     ]
   },
   "application/voucher-cms+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/vq-rtcpxr": {
     source: "iana"
   },
   "application/wasm": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "wasm"
     ]
   },
   "application/watcherinfo+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "wif"
     ]
   },
   "application/webpush-options+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/whoispp-query": {
     source: "iana"
@@ -7287,21 +7455,21 @@ const Ia = {
   },
   "application/wsdl+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "wsdl"
     ]
   },
   "application/wspolicy+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "wspolicy"
     ]
   },
   "application/x-7z-compressed": {
     source: "apache",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "7z"
     ]
@@ -7328,7 +7496,7 @@ const Ia = {
     ]
   },
   "application/x-arj": {
-    compressible: !1,
+    compressible: false,
     extensions: [
       "arj"
     ]
@@ -7361,7 +7529,7 @@ const Ia = {
     ]
   },
   "application/x-bdoc": {
-    compressible: !1,
+    compressible: false,
     extensions: [
       "bdoc"
     ]
@@ -7381,14 +7549,14 @@ const Ia = {
   },
   "application/x-bzip": {
     source: "apache",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "bz"
     ]
   },
   "application/x-bzip2": {
     source: "apache",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "bz2",
       "boz"
@@ -7461,7 +7629,7 @@ const Ia = {
     ]
   },
   "application/x-deb": {
-    compressible: !1
+    compressible: false
   },
   "application/x-debian-package": {
     source: "apache",
@@ -7498,28 +7666,28 @@ const Ia = {
   },
   "application/x-dtbncx+xml": {
     source: "apache",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "ncx"
     ]
   },
   "application/x-dtbook+xml": {
     source: "apache",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "dtb"
     ]
   },
   "application/x-dtbresource+xml": {
     source: "apache",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "res"
     ]
   },
   "application/x-dvi": {
     source: "apache",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "dvi"
     ]
@@ -7645,7 +7813,7 @@ const Ia = {
     ]
   },
   "application/x-httpd-php": {
-    compressible: !0,
+    compressible: true,
     extensions: [
       "php"
     ]
@@ -7685,13 +7853,13 @@ const Ia = {
   },
   "application/x-java-jnlp-file": {
     source: "apache",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "jnlp"
     ]
   },
   "application/x-javascript": {
-    compressible: !0
+    compressible: true
   },
   "application/x-keepass2": {
     extensions: [
@@ -7700,7 +7868,7 @@ const Ia = {
   },
   "application/x-latex": {
     source: "apache",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "latex"
     ]
@@ -7737,7 +7905,7 @@ const Ia = {
     ]
   },
   "application/x-mpegurl": {
-    compressible: !1
+    compressible: false
   },
   "application/x-ms-application": {
     source: "apache",
@@ -7863,7 +8031,7 @@ const Ia = {
     ]
   },
   "application/x-ns-proxy-autoconfig": {
-    compressible: !0,
+    compressible: true,
     extensions: [
       "pac"
     ]
@@ -7890,7 +8058,7 @@ const Ia = {
   },
   "application/x-pkcs12": {
     source: "apache",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "p12",
       "pfx"
@@ -7914,7 +8082,7 @@ const Ia = {
   },
   "application/x-rar-compressed": {
     source: "apache",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "rar"
     ]
@@ -7939,7 +8107,7 @@ const Ia = {
   },
   "application/x-sh": {
     source: "apache",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "sh"
     ]
@@ -7952,7 +8120,7 @@ const Ia = {
   },
   "application/x-shockwave-flash": {
     source: "apache",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "swf"
     ]
@@ -7971,7 +8139,7 @@ const Ia = {
   },
   "application/x-stuffit": {
     source: "apache",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "sit"
     ]
@@ -8014,7 +8182,7 @@ const Ia = {
   },
   "application/x-tar": {
     source: "apache",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "tar"
     ]
@@ -8058,49 +8226,49 @@ const Ia = {
     ]
   },
   "application/x-virtualbox-hdd": {
-    compressible: !0,
+    compressible: true,
     extensions: [
       "hdd"
     ]
   },
   "application/x-virtualbox-ova": {
-    compressible: !0,
+    compressible: true,
     extensions: [
       "ova"
     ]
   },
   "application/x-virtualbox-ovf": {
-    compressible: !0,
+    compressible: true,
     extensions: [
       "ovf"
     ]
   },
   "application/x-virtualbox-vbox": {
-    compressible: !0,
+    compressible: true,
     extensions: [
       "vbox"
     ]
   },
   "application/x-virtualbox-vbox-extpack": {
-    compressible: !1,
+    compressible: false,
     extensions: [
       "vbox-extpack"
     ]
   },
   "application/x-virtualbox-vdi": {
-    compressible: !0,
+    compressible: true,
     extensions: [
       "vdi"
     ]
   },
   "application/x-virtualbox-vhd": {
-    compressible: !0,
+    compressible: true,
     extensions: [
       "vhd"
     ]
   },
   "application/x-virtualbox-vmdk": {
-    compressible: !0,
+    compressible: true,
     extensions: [
       "vmdk"
     ]
@@ -8112,14 +8280,14 @@ const Ia = {
     ]
   },
   "application/x-web-app-manifest+json": {
-    compressible: !0,
+    compressible: true,
     extensions: [
       "webapp"
     ]
   },
   "application/x-www-form-urlencoded": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/x-x509-ca-cert": {
     source: "iana",
@@ -8143,14 +8311,14 @@ const Ia = {
   },
   "application/x-xliff+xml": {
     source: "apache",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "xlf"
     ]
   },
   "application/x-xpinstall": {
     source: "apache",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "xpi"
     ]
@@ -8179,72 +8347,72 @@ const Ia = {
   },
   "application/xacml+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/xaml+xml": {
     source: "apache",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "xaml"
     ]
   },
   "application/xcap-att+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "xav"
     ]
   },
   "application/xcap-caps+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "xca"
     ]
   },
   "application/xcap-diff+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "xdf"
     ]
   },
   "application/xcap-el+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "xel"
     ]
   },
   "application/xcap-error+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/xcap-ns+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "xns"
     ]
   },
   "application/xcon-conference-info+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/xcon-conference-info-diff+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/xenc+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "xenc"
     ]
   },
   "application/xhtml+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "xhtml",
       "xht"
@@ -8252,18 +8420,18 @@ const Ia = {
   },
   "application/xhtml-voice+xml": {
     source: "apache",
-    compressible: !0
+    compressible: true
   },
   "application/xliff+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "xlf"
     ]
   },
   "application/xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "xml",
       "xsl",
@@ -8273,7 +8441,7 @@ const Ia = {
   },
   "application/xml-dtd": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "dtd"
     ]
@@ -8283,29 +8451,29 @@ const Ia = {
   },
   "application/xml-patch+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/xmpp+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/xop+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "xop"
     ]
   },
   "application/xproc+xml": {
     source: "apache",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "xpl"
     ]
   },
   "application/xslt+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "xsl",
       "xslt"
@@ -8313,14 +8481,14 @@ const Ia = {
   },
   "application/xspf+xml": {
     source: "apache",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "xspf"
     ]
   },
   "application/xv+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "mxml",
       "xhvml",
@@ -8336,30 +8504,30 @@ const Ia = {
   },
   "application/yang-data+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/yang-data+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/yang-patch+json": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/yang-patch+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "application/yin+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "yin"
     ]
   },
   "application/zip": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "zip"
     ]
@@ -8378,7 +8546,7 @@ const Ia = {
   },
   "audio/3gpp": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "3gpp"
     ]
@@ -8427,7 +8595,7 @@ const Ia = {
   },
   "audio/basic": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "au",
       "snd"
@@ -8591,7 +8759,7 @@ const Ia = {
   },
   "audio/l24": {
     source: "iana",
-    compressible: !1
+    compressible: false
   },
   "audio/l8": {
     source: "iana"
@@ -8630,14 +8798,14 @@ const Ia = {
     ]
   },
   "audio/mp3": {
-    compressible: !1,
+    compressible: false,
     extensions: [
       "mp3"
     ]
   },
   "audio/mp4": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "m4a",
       "mp4a"
@@ -8654,7 +8822,7 @@ const Ia = {
   },
   "audio/mpeg": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "mpga",
       "mp2",
@@ -8672,7 +8840,7 @@ const Ia = {
   },
   "audio/ogg": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "oga",
       "ogg",
@@ -8940,7 +9108,7 @@ const Ia = {
     ]
   },
   "audio/vnd.rn-realaudio": {
-    compressible: !1
+    compressible: false
   },
   "audio/vnd.sealedmedia.softseal.mpeg": {
     source: "iana"
@@ -8949,37 +9117,37 @@ const Ia = {
     source: "iana"
   },
   "audio/vnd.wave": {
-    compressible: !1
+    compressible: false
   },
   "audio/vorbis": {
     source: "iana",
-    compressible: !1
+    compressible: false
   },
   "audio/vorbis-config": {
     source: "iana"
   },
   "audio/wav": {
-    compressible: !1,
+    compressible: false,
     extensions: [
       "wav"
     ]
   },
   "audio/wave": {
-    compressible: !1,
+    compressible: false,
     extensions: [
       "wav"
     ]
   },
   "audio/webm": {
     source: "apache",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "weba"
     ]
   },
   "audio/x-aac": {
     source: "apache",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "aac"
     ]
@@ -8994,7 +9162,7 @@ const Ia = {
   },
   "audio/x-caf": {
     source: "apache",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "caf"
     ]
@@ -9116,7 +9284,7 @@ const Ia = {
   },
   "font/otf": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "otf"
     ]
@@ -9126,7 +9294,7 @@ const Ia = {
   },
   "font/ttf": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "ttf"
     ]
@@ -9150,7 +9318,7 @@ const Ia = {
     ]
   },
   "image/apng": {
-    compressible: !1,
+    compressible: false,
     extensions: [
       "apng"
     ]
@@ -9169,14 +9337,14 @@ const Ia = {
   },
   "image/avif": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "avif"
     ]
   },
   "image/bmp": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "bmp"
     ]
@@ -9213,7 +9381,7 @@ const Ia = {
   },
   "image/gif": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "gif"
     ]
@@ -9268,7 +9436,7 @@ const Ia = {
   },
   "image/jp2": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "jp2",
       "jpg2"
@@ -9276,7 +9444,7 @@ const Ia = {
   },
   "image/jpeg": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "jpeg",
       "jpg",
@@ -9297,14 +9465,14 @@ const Ia = {
   },
   "image/jpm": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "jpm"
     ]
   },
   "image/jpx": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "jpx",
       "jpf"
@@ -9368,11 +9536,11 @@ const Ia = {
     source: "iana"
   },
   "image/pjpeg": {
-    compressible: !1
+    compressible: false
   },
   "image/png": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "png"
     ]
@@ -9400,7 +9568,7 @@ const Ia = {
   },
   "image/svg+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "svg",
       "svgz"
@@ -9414,7 +9582,7 @@ const Ia = {
   },
   "image/tiff": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "tif",
       "tiff"
@@ -9428,7 +9596,7 @@ const Ia = {
   },
   "image/vnd.adobe.photoshop": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "psd"
     ]
@@ -9511,7 +9679,7 @@ const Ia = {
   },
   "image/vnd.microsoft.icon": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "ico"
     ]
@@ -9523,7 +9691,7 @@ const Ia = {
     source: "iana"
   },
   "image/vnd.ms-dds": {
-    compressible: !0,
+    compressible: true,
     extensions: [
       "dds"
     ]
@@ -9639,7 +9807,7 @@ const Ia = {
   },
   "image/x-icon": {
     source: "apache",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "ico"
     ]
@@ -9658,7 +9826,7 @@ const Ia = {
   },
   "image/x-ms-bmp": {
     source: "nginx",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "bmp"
     ]
@@ -9719,7 +9887,7 @@ const Ia = {
     ]
   },
   "image/x-xcf": {
-    compressible: !1
+    compressible: false
   },
   "image/x-xpixmap": {
     source: "apache",
@@ -9777,22 +9945,22 @@ const Ia = {
   },
   "message/http": {
     source: "iana",
-    compressible: !1
+    compressible: false
   },
   "message/imdn+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "message/news": {
     source: "iana"
   },
   "message/partial": {
     source: "iana",
-    compressible: !1
+    compressible: false
   },
   "message/rfc822": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "eml",
       "mime"
@@ -9830,21 +9998,21 @@ const Ia = {
   },
   "model/gltf+json": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "gltf"
     ]
   },
   "model/gltf-binary": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "glb"
     ]
   },
   "model/iges": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "igs",
       "iges"
@@ -9852,7 +10020,7 @@ const Ia = {
   },
   "model/mesh": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "msh",
       "mesh",
@@ -9876,21 +10044,21 @@ const Ia = {
   },
   "model/step+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "stpx"
     ]
   },
   "model/step+zip": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "stpz"
     ]
   },
   "model/step-xml+zip": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "stpxz"
     ]
@@ -9903,7 +10071,7 @@ const Ia = {
   },
   "model/vnd.collada+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "dae"
     ]
@@ -9937,7 +10105,7 @@ const Ia = {
   },
   "model/vnd.moml+xml": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "model/vnd.mts": {
     source: "iana",
@@ -9977,7 +10145,7 @@ const Ia = {
   },
   "model/vnd.usdz+zip": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "usdz"
     ]
@@ -9996,7 +10164,7 @@ const Ia = {
   },
   "model/vrml": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "wrl",
       "vrml"
@@ -10004,7 +10172,7 @@ const Ia = {
   },
   "model/x3d+binary": {
     source: "apache",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "x3db",
       "x3dbz"
@@ -10018,7 +10186,7 @@ const Ia = {
   },
   "model/x3d+vrml": {
     source: "apache",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "x3dv",
       "x3dvz"
@@ -10026,7 +10194,7 @@ const Ia = {
   },
   "model/x3d+xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "x3d",
       "x3dz"
@@ -10040,7 +10208,7 @@ const Ia = {
   },
   "multipart/alternative": {
     source: "iana",
-    compressible: !1
+    compressible: false
   },
   "multipart/appledouble": {
     source: "iana"
@@ -10053,11 +10221,11 @@ const Ia = {
   },
   "multipart/encrypted": {
     source: "iana",
-    compressible: !1
+    compressible: false
   },
   "multipart/form-data": {
     source: "iana",
-    compressible: !1
+    compressible: false
   },
   "multipart/header-set": {
     source: "iana"
@@ -10073,14 +10241,14 @@ const Ia = {
   },
   "multipart/related": {
     source: "iana",
-    compressible: !1
+    compressible: false
   },
   "multipart/report": {
     source: "iana"
   },
   "multipart/signed": {
     source: "iana",
-    compressible: !1
+    compressible: false
   },
   "multipart/vnd.bint.med-plus": {
     source: "iana"
@@ -10096,7 +10264,7 @@ const Ia = {
   },
   "text/cache-manifest": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "appcache",
       "manifest"
@@ -10110,10 +10278,10 @@ const Ia = {
     ]
   },
   "text/calender": {
-    compressible: !0
+    compressible: true
   },
   "text/cmd": {
-    compressible: !0
+    compressible: true
   },
   "text/coffeescript": {
     extensions: [
@@ -10133,14 +10301,14 @@ const Ia = {
   "text/css": {
     source: "iana",
     charset: "UTF-8",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "css"
     ]
   },
   "text/csv": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "csv"
     ]
@@ -10180,7 +10348,7 @@ const Ia = {
   },
   "text/html": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "html",
       "htm",
@@ -10194,26 +10362,26 @@ const Ia = {
   },
   "text/javascript": {
     source: "iana",
-    compressible: !0
+    compressible: true
   },
   "text/jcr-cnd": {
     source: "iana"
   },
   "text/jsx": {
-    compressible: !0,
+    compressible: true,
     extensions: [
       "jsx"
     ]
   },
   "text/less": {
-    compressible: !0,
+    compressible: true,
     extensions: [
       "less"
     ]
   },
   "text/markdown": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "markdown",
       "md"
@@ -10226,7 +10394,7 @@ const Ia = {
     ]
   },
   "text/mdx": {
-    compressible: !0,
+    compressible: true,
     extensions: [
       "mdx"
     ]
@@ -10237,7 +10405,7 @@ const Ia = {
   "text/n3": {
     source: "iana",
     charset: "UTF-8",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "n3"
     ]
@@ -10251,7 +10419,7 @@ const Ia = {
   },
   "text/plain": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "txt",
       "text",
@@ -10290,14 +10458,14 @@ const Ia = {
   },
   "text/richtext": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "rtx"
     ]
   },
   "text/rtf": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "rtf"
     ]
@@ -10353,7 +10521,7 @@ const Ia = {
   },
   "text/tab-separated-values": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "tsv"
     ]
@@ -10381,7 +10549,7 @@ const Ia = {
   },
   "text/uri-list": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "uri",
       "uris",
@@ -10390,7 +10558,7 @@ const Ia = {
   },
   "text/vcard": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "vcard"
     ]
@@ -10555,7 +10723,7 @@ const Ia = {
   "text/vtt": {
     source: "iana",
     charset: "UTF-8",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "vtt"
     ]
@@ -10595,7 +10763,7 @@ const Ia = {
     ]
   },
   "text/x-gwt-rpc": {
-    compressible: !0
+    compressible: true
   },
   "text/x-handlebars-template": {
     extensions: [
@@ -10609,7 +10777,7 @@ const Ia = {
     ]
   },
   "text/x-jquery-tmpl": {
-    compressible: !0
+    compressible: true
   },
   "text/x-lua": {
     extensions: [
@@ -10617,7 +10785,7 @@ const Ia = {
     ]
   },
   "text/x-markdown": {
-    compressible: !0,
+    compressible: true,
     extensions: [
       "mkd"
     ]
@@ -10635,7 +10803,7 @@ const Ia = {
     ]
   },
   "text/x-org": {
-    compressible: !0,
+    compressible: true,
     extensions: [
       "org"
     ]
@@ -10648,7 +10816,7 @@ const Ia = {
     ]
   },
   "text/x-processing": {
-    compressible: !0,
+    compressible: true,
     extensions: [
       "pde"
     ]
@@ -10676,7 +10844,7 @@ const Ia = {
     ]
   },
   "text/x-suse-ymp": {
-    compressible: !0,
+    compressible: true,
     extensions: [
       "ymp"
     ]
@@ -10701,7 +10869,7 @@ const Ia = {
   },
   "text/xml": {
     source: "iana",
-    compressible: !0,
+    compressible: true,
     extensions: [
       "xml"
     ]
@@ -10710,7 +10878,7 @@ const Ia = {
     source: "iana"
   },
   "text/yaml": {
-    compressible: !0,
+    compressible: true,
     extensions: [
       "yaml",
       "yml"
@@ -10838,7 +11006,7 @@ const Ia = {
   },
   "video/mp4": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "mp4",
       "mp4v",
@@ -10850,7 +11018,7 @@ const Ia = {
   },
   "video/mpeg": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "mpeg",
       "mpg",
@@ -10870,7 +11038,7 @@ const Ia = {
   },
   "video/ogg": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "ogv"
     ]
@@ -10883,7 +11051,7 @@ const Ia = {
   },
   "video/quicktime": {
     source: "iana",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "qt",
       "mov"
@@ -11078,7 +11246,7 @@ const Ia = {
   },
   "video/webm": {
     source: "apache",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "webm"
     ]
@@ -11097,7 +11265,7 @@ const Ia = {
   },
   "video/x-flv": {
     source: "apache",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "flv"
     ]
@@ -11110,7 +11278,7 @@ const Ia = {
   },
   "video/x-matroska": {
     source: "apache",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "mkv",
       "mk3d",
@@ -11144,7 +11312,7 @@ const Ia = {
   },
   "video/x-ms-wmv": {
     source: "apache",
-    compressible: !1,
+    compressible: false,
     extensions: [
       "wmv"
     ]
@@ -11186,10 +11354,10 @@ const Ia = {
     ]
   },
   "x-shader/x-fragment": {
-    compressible: !0
+    compressible: true
   },
   "x-shader/x-vertex": {
-    compressible: !0
+    compressible: true
   }
 };
 /*!
@@ -11198,206 +11366,287 @@ const Ia = {
  * Copyright(c) 2015-2022 Douglas Christopher Wilson
  * MIT Licensed
  */
-var Oa = Ia;
+var mimeDb = require$$0;
 /*!
  * mime-types
  * Copyright(c) 2014 Jonathan Ong
  * Copyright(c) 2015 Douglas Christopher Wilson
  * MIT Licensed
  */
-(function(a) {
-  var e = Oa, i = ha.extname, n = /^\s*([^;\s]*)(?:;|\s|$)/, s = /^text\//i;
-  a.charset = o, a.charsets = { lookup: o }, a.contentType = r, a.extension = l, a.extensions = /* @__PURE__ */ Object.create(null), a.lookup = b, a.types = /* @__PURE__ */ Object.create(null), f(a.extensions, a.types);
-  function o(t) {
-    if (!t || typeof t != "string")
-      return !1;
-    var c = n.exec(t), p = c && e[c[1].toLowerCase()];
-    return p && p.charset ? p.charset : c && s.test(c[1]) ? "UTF-8" : !1;
-  }
-  function r(t) {
-    if (!t || typeof t != "string")
-      return !1;
-    var c = t.indexOf("/") === -1 ? a.lookup(t) : t;
-    if (!c)
-      return !1;
-    if (c.indexOf("charset") === -1) {
-      var p = a.charset(c);
-      p && (c += "; charset=" + p.toLowerCase());
+(function(exports) {
+  var db = mimeDb;
+  var extname = require$$1.extname;
+  var EXTRACT_TYPE_REGEXP = /^\s*([^;\s]*)(?:;|\s|$)/;
+  var TEXT_TYPE_REGEXP = /^text\//i;
+  exports.charset = charset;
+  exports.charsets = { lookup: charset };
+  exports.contentType = contentType;
+  exports.extension = extension;
+  exports.extensions = /* @__PURE__ */ Object.create(null);
+  exports.lookup = lookup;
+  exports.types = /* @__PURE__ */ Object.create(null);
+  populateMaps(exports.extensions, exports.types);
+  function charset(type) {
+    if (!type || typeof type !== "string") {
+      return false;
     }
-    return c;
+    var match = EXTRACT_TYPE_REGEXP.exec(type);
+    var mime2 = match && db[match[1].toLowerCase()];
+    if (mime2 && mime2.charset) {
+      return mime2.charset;
+    }
+    if (match && TEXT_TYPE_REGEXP.test(match[1])) {
+      return "UTF-8";
+    }
+    return false;
   }
-  function l(t) {
-    if (!t || typeof t != "string")
-      return !1;
-    var c = n.exec(t), p = c && a.extensions[c[1].toLowerCase()];
-    return !p || !p.length ? !1 : p[0];
+  function contentType(str) {
+    if (!str || typeof str !== "string") {
+      return false;
+    }
+    var mime2 = str.indexOf("/") === -1 ? exports.lookup(str) : str;
+    if (!mime2) {
+      return false;
+    }
+    if (mime2.indexOf("charset") === -1) {
+      var charset2 = exports.charset(mime2);
+      if (charset2) mime2 += "; charset=" + charset2.toLowerCase();
+    }
+    return mime2;
   }
-  function b(t) {
-    if (!t || typeof t != "string")
-      return !1;
-    var c = i("x." + t).toLowerCase().substr(1);
-    return c && a.types[c] || !1;
+  function extension(type) {
+    if (!type || typeof type !== "string") {
+      return false;
+    }
+    var match = EXTRACT_TYPE_REGEXP.exec(type);
+    var exts = match && exports.extensions[match[1].toLowerCase()];
+    if (!exts || !exts.length) {
+      return false;
+    }
+    return exts[0];
   }
-  function f(t, c) {
-    var p = ["nginx", "apache", void 0, "iana"];
-    Object.keys(e).forEach(function(q) {
-      var k = e[q], y = k.extensions;
-      if (!(!y || !y.length)) {
-        t[q] = y;
-        for (var j = 0; j < y.length; j++) {
-          var d = y[j];
-          if (c[d]) {
-            var F = p.indexOf(e[c[d]].source), S = p.indexOf(k.source);
-            if (c[d] !== "application/octet-stream" && (F > S || F === S && c[d].substr(0, 12) === "application/"))
-              continue;
+  function lookup(path2) {
+    if (!path2 || typeof path2 !== "string") {
+      return false;
+    }
+    var extension2 = extname("x." + path2).toLowerCase().substr(1);
+    if (!extension2) {
+      return false;
+    }
+    return exports.types[extension2] || false;
+  }
+  function populateMaps(extensions, types) {
+    var preference = ["nginx", "apache", void 0, "iana"];
+    Object.keys(db).forEach(function forEachMimeType(type) {
+      var mime2 = db[type];
+      var exts = mime2.extensions;
+      if (!exts || !exts.length) {
+        return;
+      }
+      extensions[type] = exts;
+      for (var i = 0; i < exts.length; i++) {
+        var extension2 = exts[i];
+        if (types[extension2]) {
+          var from = preference.indexOf(db[types[extension2]].source);
+          var to = preference.indexOf(mime2.source);
+          if (types[extension2] !== "application/octet-stream" && (from > to || from === to && types[extension2].substr(0, 12) === "application/")) {
+            continue;
           }
-          c[d] = q;
         }
+        types[extension2] = type;
       }
     });
   }
-})(pa);
-const Na = /* @__PURE__ */ Ba(pa), ra = w.dirname(va(import.meta.url));
-process.env.APP_ROOT = w.join(ra, "..");
-const G = process.env.VITE_DEV_SERVER_URL, la = w.join(process.env.APP_ROOT, "dist");
-process.env.VITE_PUBLIC = G ? w.join(process.env.APP_ROOT, "public") : la;
-let T, Q = !1, I = !1;
-function Aa(a, e) {
-  const i = a.match(/^bytes=(\d+)-(\d*)$/);
-  if (!i)
+})(mimeTypes);
+const mime = /* @__PURE__ */ getDefaultExportFromCjs(mimeTypes);
+const __dirname$1 = path.dirname(fileURLToPath(import.meta.url));
+process.env.APP_ROOT = path.join(__dirname$1, "..");
+const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
+const RENDERER_DIST = path.join(process.env.APP_ROOT, "dist");
+process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, "public") : RENDERER_DIST;
+let win;
+let isShuttingDown = false;
+let isCompressionActive = false;
+function parseRangeHeader(range, fileSize) {
+  const match = range.match(/^bytes=(\d+)-(\d*)$/);
+  if (!match) {
     return null;
-  const n = Number(i[1]), s = i[2] ? Number(i[2]) : e - 1;
-  return !Number.isSafeInteger(n) || !Number.isSafeInteger(s) || n < 0 || s < n || n >= e || s >= e ? null : {
-    start: n,
-    end: s
+  }
+  const start = Number(match[1]);
+  const end = match[2] ? Number(match[2]) : fileSize - 1;
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end < start || start >= fileSize || end >= fileSize) {
+    return null;
+  }
+  return {
+    start,
+    end
   };
 }
-function ua() {
-  T = new Z({
+function createWindow() {
+  win = new BrowserWindow({
     width: 1200,
     height: 720,
-    autoHideMenuBar: !0,
+    minWidth: 1200,
+    minHeight: 720,
+    autoHideMenuBar: true,
     webPreferences: {
-      preload: w.join(ra, "preload.mjs")
+      preload: path.join(__dirname$1, "preload.mjs")
     }
-  }), T.setMenuBarVisibility(!1), T.removeMenu(), G ? T.loadURL(G) : T.loadFile(w.join(la, "index.html"));
+  });
+  win.setMenuBarVisibility(false);
+  win.removeMenu();
+  if (VITE_DEV_SERVER_URL) {
+    win.loadURL(VITE_DEV_SERVER_URL);
+  } else {
+    win.loadFile(path.join(RENDERER_DIST, "index.html"));
+  }
 }
-U.on("window-all-closed", () => {
-  process.platform !== "darwin" && (U.quit(), T = null);
-});
-U.on("activate", () => {
-  Z.getAllWindows().length === 0 && ua();
-});
-U.on("before-quit", (a) => {
-  Q || (a.preventDefault(), Q = !0, (async () => (await sa(), U.quit()))());
-});
-$.handle("select-video", Ra);
-$.handle("compress-video", async (a, e) => {
-  if (I)
-    throw new Error("A compression is already active");
-  I = !0;
-  try {
-    return await Ma(
-      e,
-      (i) => {
-        T && !T.isDestroyed() && T.webContents.send(
-          "compression-progress",
-          i
-        );
-      }
-    );
-  } catch (i) {
-    throw console.error(i), i;
-  } finally {
-    I = !1;
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
+    app.quit();
+    win = null;
   }
 });
-$.handle("cancel-compression", async () => {
-  await sa();
+app.on("activate", () => {
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createWindow();
+  }
 });
-$.handle("open-result-folder", async (a, e) => {
-  const i = Ea(e);
-  if (!i)
+app.on("before-quit", (event) => {
+  if (isShuttingDown) {
+    return;
+  }
+  event.preventDefault();
+  isShuttingDown = true;
+  void (async () => {
+    await terminateAllFfmpegProcesses();
+    app.quit();
+  })();
+});
+ipcMain.handle("select-video", selectVideo);
+ipcMain.handle(
+  "select-dropped-video",
+  async (_, filePath) => selectDroppedVideo(filePath)
+);
+ipcMain.handle("compress-video", async (_, request) => {
+  if (isCompressionActive) {
+    throw new Error("A compression is already active");
+  }
+  isCompressionActive = true;
+  try {
+    return await compressVideo(
+      request,
+      (progress) => {
+        if (win && !win.isDestroyed()) {
+          win.webContents.send(
+            "compression-progress",
+            progress
+          );
+        }
+      }
+    );
+  } catch (error) {
+    console.error(error);
+    throw error;
+  } finally {
+    isCompressionActive = false;
+  }
+});
+ipcMain.handle("cancel-compression", async () => {
+  await terminateAllFfmpegProcesses();
+});
+ipcMain.handle("open-result-folder", async (_, outputId) => {
+  const outputPath = getGeneratedOutputPath(outputId);
+  if (!outputPath) {
     throw new Error("Output file not authorized");
-  da.showItemInFolder(i);
+  }
+  shell.showItemInFolder(outputPath);
 });
-U.whenReady().then(() => {
-  xa.handle(
+app.whenReady().then(() => {
+  protocol.handle(
     "video",
-    async (a) => {
-      var e;
+    async (request) => {
+      var _a;
       try {
-        const i = decodeURIComponent(
-          a.url.slice(
-            8
+        const videoId = decodeURIComponent(
+          request.url.slice(
+            "video://".length
           )
-        ), n = oa(i);
-        if (!n)
+        );
+        const filePath = getSelectedVideoPath(videoId);
+        if (!filePath) {
           return new Response(
             "Video not authorized",
             {
               status: 403
             }
           );
-        const s = await M.promises.stat(
-          n
-        ), o = a.headers.get(
+        }
+        const stat = await fs$2.promises.stat(
+          filePath
+        );
+        const range = request.headers.get(
           "range"
-        ), r = ((e = Na.lookup(n)) == null ? void 0 : e.toString()) || "application/octet-stream";
-        if (!o) {
-          const p = Y.toWeb(
-            M.createReadStream(
-              n
+        );
+        const contentType = ((_a = mime.lookup(filePath)) == null ? void 0 : _a.toString()) || "application/octet-stream";
+        if (!range) {
+          const stream2 = Readable.toWeb(
+            fs$2.createReadStream(
+              filePath
             )
           );
           return new Response(
-            p,
+            stream2,
             {
               headers: {
-                "Content-Type": r,
-                "Content-Length": String(s.size),
+                "Content-Type": contentType,
+                "Content-Length": String(stat.size),
                 "Accept-Ranges": "bytes"
               }
             }
           );
         }
-        const l = Aa(
-          o,
-          s.size
+        const parsedRange = parseRangeHeader(
+          range,
+          stat.size
         );
-        if (!l)
+        if (!parsedRange) {
           return new Response(
             "Invalid range",
             {
               status: 416
             }
           );
-        const { start: b, end: f } = l, t = f - b + 1, c = Y.toWeb(
-          M.createReadStream(
-            n,
+        }
+        const { start, end } = parsedRange;
+        const chunkSize = end - start + 1;
+        const stream = Readable.toWeb(
+          fs$2.createReadStream(
+            filePath,
             {
-              start: b,
-              end: f
+              start,
+              end
             }
           )
         );
         return new Response(
-          c,
+          stream,
           {
             status: 206,
             headers: {
-              "Content-Type": r,
-              "Content-Length": String(t),
-              "Content-Range": `bytes ${b}-${f}/${s.size}`,
+              "Content-Type": contentType,
+              "Content-Length": String(chunkSize),
+              "Content-Range": `bytes ${start}-${end}/${stat.size}`,
               "Accept-Ranges": "bytes"
             }
           }
         );
-      } catch (i) {
-        return console.error(
+      } catch (error) {
+        console.error(
           "Video protocol error:",
-          i
-        ), new Response(
+          error
+        );
+        return new Response(
           "File not found",
           {
             status: 404
@@ -11405,9 +11654,10 @@ U.whenReady().then(() => {
         );
       }
     }
-  ), ua();
+  );
+  createWindow();
 });
 export {
-  la as RENDERER_DIST,
-  G as VITE_DEV_SERVER_URL
+  RENDERER_DIST,
+  VITE_DEV_SERVER_URL
 };

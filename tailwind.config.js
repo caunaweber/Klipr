@@ -50,7 +50,7 @@ export default {
         sm: 'calc(var(--radius) - 4px)',
       },
       boxShadow: {
-        soft: '0 18px 60px rgb(15 23 42 / 0.08)',
+        soft: '0 18px 60px rgb(0 0 0 / 0.2)',
       },
     },
   },

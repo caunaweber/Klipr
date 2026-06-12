@@ -28,6 +28,10 @@ interface Window {
   videoCompressor: {
     selectVideo: () => Promise<VideoInfo | null>
 
+    selectDroppedVideo: (filePath: string) => Promise<VideoInfo>
+
+    getPathForFile: (file: File) => string
+
     compressVideo: (
       request: import('./types/compression').CompressionRequest
     ) => Promise<import('./types/compression').CompressionResult>

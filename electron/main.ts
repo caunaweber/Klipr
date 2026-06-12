@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
-import { selectVideo, compressVideo } from './services/video.services'
+import { selectVideo, selectDroppedVideo, compressVideo } from './services/video.services'
 import { CompressionRequest } from './types/compression'
 import { protocol } from 'electron'
 import mime from 'mime-types'
@@ -66,6 +66,8 @@ function createWindow() {
   win = new BrowserWindow({
     width: 1200,
     height: 720,
+    minWidth: 1200,
+    minHeight: 720,
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
@@ -110,6 +112,10 @@ app.on('before-quit', (event) => {
 })
 
 ipcMain.handle('select-video', selectVideo)
+
+ipcMain.handle('select-dropped-video', async (_, filePath: string) =>
+  selectDroppedVideo(filePath)
+)
 
 ipcMain.handle('compress-video', async (_, request: CompressionRequest) => {
 
