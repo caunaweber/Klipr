@@ -1,7 +1,6 @@
 import { useState, type DragEvent, type KeyboardEvent } from 'react'
 import { AlertCircle, Loader2, UploadCloud } from 'lucide-react'
 import { cn } from '../lib/utils'
-//import { Button } from './ui/button'
 
 interface VideoDropzoneProps {
   error?: string | null
@@ -88,19 +87,6 @@ export function VideoDropzone({
       <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
         Drag a video here or click to choose a local file.
       </p>
-
-      {/* <Button
-        className="mt-5"
-        disabled={isLoading}
-        onClick={(event) => {
-          event.stopPropagation()
-          onSelectVideo()
-        }}
-        type="button"
-        variant="secondary"
-      >
-        Browse file
-      </Button> */}
 
       {error && (
         <div className="mt-5 flex max-w-sm items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-left text-sm text-destructive-foreground">

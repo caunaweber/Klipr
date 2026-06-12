@@ -8,7 +8,7 @@ interface TargetSizeInputProps {
 }
 
 const TARGET_SIZE_PRESETS = ['8', '10', '25', '50', '100']
-const INVALID_TARGET_SIZE_MESSAGE = 'Invalid targetsize.'
+const INVALID_TARGET_SIZE_MESSAGE = 'Target size must be smaller than the original video.'
 
 export function TargetSizeInput({
   sourceSizeMB,

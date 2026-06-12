@@ -33,6 +33,49 @@ interface FfprobeData {
   streams: FfprobeStream[]
 }
 
+function assertSupportedVideoExtension(
+  filePath: string
+) {
+  const extension = path.extname(filePath).toLowerCase()
+
+  if (!SUPPORTED_VIDEO_EXTENSIONS.has(extension)) {
+    throw new Error('Unsupported video format')
+  }
+}
+
+function resolveDroppedVideoPath(
+  filePath: unknown
+) {
+  if (
+    typeof filePath !== 'string' ||
+    filePath.trim().length === 0
+  ) {
+    throw new Error('Dropped video path is invalid')
+  }
+
+  if (!path.isAbsolute(filePath)) {
+    throw new Error('Dropped video path must be absolute')
+  }
+
+  const linkStats = fs.lstatSync(filePath)
+
+  if (linkStats.isSymbolicLink()) {
+    throw new Error('Dropped video cannot be a symbolic link')
+  }
+
+  const resolvedPath = fs.realpathSync(filePath)
+
+  assertSupportedVideoExtension(resolvedPath)
+
+  const stats = fs.statSync(resolvedPath)
+
+  if (!stats.isFile()) {
+    throw new Error('Dropped item is not a file')
+  }
+
+  return resolvedPath
+}
+
 export async function selectVideo(): Promise<VideoInfo | null> {
   const result = await dialog.showOpenDialog({
     properties: ['openFile'],
@@ -44,28 +87,20 @@ export async function selectVideo(): Promise<VideoInfo | null> {
     return null
   }
 
-  const filePath = result.filePaths[0]
+  const filePath = fs.realpathSync(result.filePaths[0])
+  assertSupportedVideoExtension(filePath)
+
   const id = registerSelectedVideo(filePath)
 
   return getVideoInfo(filePath, id)
 }
 
-export async function selectDroppedVideo(filePath: string): Promise<VideoInfo> {
-  const extension = path.extname(filePath).toLowerCase()
+export async function selectDroppedVideo(filePath: unknown): Promise<VideoInfo> {
+  const resolvedPath = resolveDroppedVideoPath(filePath)
 
-  if (!SUPPORTED_VIDEO_EXTENSIONS.has(extension)) {
-    throw new Error('Unsupported video format')
-  }
+  const id = registerSelectedVideo(resolvedPath)
 
-  const stats = fs.statSync(filePath)
-
-  if (!stats.isFile()) {
-    throw new Error('Dropped item is not a file')
-  }
-
-  const id = registerSelectedVideo(filePath)
-
-  return getVideoInfo(filePath, id)
+  return getVideoInfo(resolvedPath, id)
 }
 
 export async function getVideoInfo(filePath: string, id: string): Promise<VideoInfo> {

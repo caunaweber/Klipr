@@ -203,7 +203,7 @@ app.on('before-quit', (event) => {
 
 ipcMain.handle('select-video', selectVideo)
 
-ipcMain.handle('select-dropped-video', async (_, filePath: string) =>
+ipcMain.handle('select-dropped-video', async (_, filePath: unknown) =>
   selectDroppedVideo(filePath)
 )
 
