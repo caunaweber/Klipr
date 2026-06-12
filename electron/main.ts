@@ -69,6 +69,8 @@ function createWindow() {
     minWidth: 1200,
     minHeight: 720,
     autoHideMenuBar: true,
+    frame: false,
+    backgroundColor: '#061116',
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
     },
@@ -157,6 +159,14 @@ ipcMain.handle('open-result-folder', async (_, outputId: string) => {
   }
 
   shell.showItemInFolder(outputPath)
+})
+
+ipcMain.handle('window:minimize', (event) => {
+  BrowserWindow.fromWebContents(event.sender)?.minimize()
+})
+
+ipcMain.handle('window:close', (event) => {
+  BrowserWindow.fromWebContents(event.sender)?.close()
 })
 
 app.whenReady().then(() => {

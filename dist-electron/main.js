@@ -11489,6 +11489,8 @@ function createWindow() {
     minWidth: 1200,
     minHeight: 720,
     autoHideMenuBar: true,
+    frame: false,
+    backgroundColor: "#061116",
     webPreferences: {
       preload: path.join(__dirname$1, "preload.mjs")
     }
@@ -11561,6 +11563,14 @@ ipcMain.handle("open-result-folder", async (_, outputId) => {
     throw new Error("Output file not authorized");
   }
   shell.showItemInFolder(outputPath);
+});
+ipcMain.handle("window:minimize", (event) => {
+  var _a;
+  (_a = BrowserWindow.fromWebContents(event.sender)) == null ? void 0 : _a.minimize();
+});
+ipcMain.handle("window:close", (event) => {
+  var _a;
+  (_a = BrowserWindow.fromWebContents(event.sender)) == null ? void 0 : _a.close();
 });
 app.whenReady().then(() => {
   protocol.handle(

@@ -8,6 +8,7 @@ import {
   SlidersHorizontal,
   Square,
 } from 'lucide-react'
+import { AppTitleBar } from './components/AppTitleBar'
 import { CodecSelect } from './components/CodecSelect'
 import { CompressionProgress } from './components/CompressionProgress'
 import { CompressionResult } from './components/CompressionResult'
@@ -82,16 +83,10 @@ function App() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.16),transparent_34%),linear-gradient(135deg,#071923_0%,#0a222b_48%,#061116_100%)] px-4 py-4 text-foreground sm:px-5 lg:px-6">
+    <>
+      <AppTitleBar />
+      <main className="min-h-[calc(100vh-2.25rem)] bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.16),transparent_34%),linear-gradient(135deg,#071923_0%,#0a222b_48%,#061116_100%)] px-4 py-3 text-foreground sm:px-5 lg:px-6">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-3">
-        <header className="flex flex-col gap-3 border-b border-border pb-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-xl font-semibold tracking-normal text-foreground sm:text-2xl">
-              Video Compressor
-            </h1>
-          </div>
-        </header>
-
         {message && (
           <section
             className={`flex items-start gap-3 rounded-lg border px-3 py-2 text-sm shadow-soft ${
@@ -191,7 +186,8 @@ function App() {
           )}
         </section>
       </div>
-    </main>
+      </main>
+    </>
   )
 }
 

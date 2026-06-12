@@ -20,3 +20,7 @@ electron.contextBridge.exposeInMainWorld("videoCompressor", {
     };
   }
 });
+electron.contextBridge.exposeInMainWorld("windowControls", {
+  minimize: () => electron.ipcRenderer.invoke("window:minimize"),
+  close: () => electron.ipcRenderer.invoke("window:close")
+});

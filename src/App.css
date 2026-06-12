@@ -18,3 +18,11 @@
   outline: 2px solid hsl(var(--ring));
   outline-offset: 2px;
 }
+
+.app-titlebar {
+  -webkit-app-region: drag;
+}
+
+.app-titlebar-button {
+  -webkit-app-region: no-drag;
+}
