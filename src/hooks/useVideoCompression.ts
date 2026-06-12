@@ -1,9 +1,50 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CompressionCodec, CompressionResult } from '../../electron/types/compression'
 import type { VideoInfo } from '../../electron/types/video'
 
 type CompressionStatus = 'idle' | 'loading-video' | 'compressing' | 'cancelling' | 'success' | 'error' | 'cancelled'
 const SUPPORTED_VIDEO_EXTENSIONS = ['.mp4', '.avi', '.mkv']
+
+function getErrorText(error: unknown) {
+  return error instanceof Error ? error.message : String(error)
+}
+
+function getCompressionErrorMessage(error: unknown) {
+  const errorText = getErrorText(error)
+
+  if (
+    errorText.includes('ENOENT') ||
+    errorText.includes('no such file or directory') ||
+    errorText.includes('cannot find the file')
+  ) {
+    return 'Selected video file could not be found. Select it again.'
+  }
+
+  if (errorText.includes('Target size is too small')) {
+    return 'Target size is too small for this video. Try a larger size or a shorter trim.'
+  }
+
+  if (errorText.includes('A compression is already active')) {
+    return 'A compression is already running.'
+  }
+
+  if (errorText.includes('Video not authorized')) {
+    return 'This video is no longer available. Select it again.'
+  }
+
+  if (errorText.includes('Invalid clip duration')) {
+    return 'The selected trim range is invalid. Reset trim and try again.'
+  }
+
+  if (
+    errorText.includes('FFmpeg exited') ||
+    errorText.includes('First pass failed')
+  ) {
+    return 'FFmpeg could not compress this video. Try a different codec or target size.'
+  }
+
+  return 'Compression failed. Check the settings and try again.'
+}
 
 export function useVideoCompression() {
   const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null)
@@ -143,7 +184,7 @@ export function useVideoCompression() {
       setMessage(
         cancelRequestedRef.current
           ? 'Compression cancelled.'
-          : 'Compression failed. Check the settings and try again.',
+          : getCompressionErrorMessage(error),
       )
     } finally {
       setIsCompressing(false)
@@ -164,6 +205,19 @@ export function useVideoCompression() {
     }
   }
 
+  const showPreviewError = useCallback(() => {
+    setStatus('error')
+    setMessage('Could not preview this video. Try selecting it again.')
+  }, [])
+
+  const dismissMessage = useCallback(() => {
+    setMessage(null)
+
+    if (status === 'error' || status === 'cancelled') {
+      setStatus('idle')
+    }
+  }, [status])
+
   useEffect(() => {
     const unsubscribe = window.videoCompressor.onProgress(setProgress)
     return unsubscribe
@@ -177,6 +231,7 @@ export function useVideoCompression() {
     clearVideo,
     compressVideo,
     compressionResult,
+    dismissMessage,
     isCancelling,
     isCompressing,
     isSelectingVideo,
@@ -190,6 +245,7 @@ export function useVideoCompression() {
     setCodec,
     setTargetSizeMB,
     setUseTwoPass,
+    showPreviewError,
     status,
     targetSizeMB,
     useTwoPass,

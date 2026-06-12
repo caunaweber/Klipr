@@ -2,6 +2,7 @@ import { useState, type RefObject } from 'react'
 import { RotateCcw } from 'lucide-react'
 import { Range } from 'react-range'
 import { formatDuration } from '../utils/formatDuration'
+import { Tooltip } from './Tooltip'
 import { Button } from './ui/button'
 
 interface TrimRangeProps {
@@ -39,17 +40,24 @@ export function TrimRange({
           </p>
         </div>
 
-        <Button
-          aria-label="Reset trim"
+        <Tooltip
           className="shrink-0"
-          onClick={onResetTrim}
-          size="sm"
-          type="button"
-          variant="outline"
+          content="Restore full video range."
+          fullWidth={false}
         >
-          <RotateCcw />
-          Reset
-        </Button>
+          <span className="inline-flex">
+            <Button
+              aria-label="Reset trim"
+              onClick={onResetTrim}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              <RotateCcw />
+              Reset
+            </Button>
+          </span>
+        </Tooltip>
       </div>
 
       <Range
@@ -97,8 +105,13 @@ export function TrimRange({
           <div
             {...props}
             onMouseDown={() => setActiveThumb(index)}
-            className="trim-thumb"
-          />
+            className="trim-thumb group/trim-thumb"
+          >
+            <span className="trim-thumb-tooltip">
+              {index === 0 ? 'Start' : 'End'}:{' '}
+              {formatDuration(index === 0 ? clipStart : clipEnd)}
+            </span>
+          </div>
         )}
       />
     </div>

@@ -3,6 +3,7 @@ import { Clock3, HardDrive, Maximize2, Trash2 } from 'lucide-react'
 import type { VideoInfo } from '../../electron/types/video'
 import { formatDuration } from '../utils/formatDuration'
 import { PlayerControls } from './PlayerControls'
+import { Tooltip } from './Tooltip'
 import { TrimRange } from './TrimRange'
 import { Button } from './ui/button'
 
@@ -16,6 +17,7 @@ interface VideoPreviewProps {
   onClipEndChange: (clipEnd: number) => void
   onClipStartChange: (clipStart: number) => void
   onClearVideo: () => void
+  onPreviewError: () => void
   onResetTrim: () => void
   onTogglePlayback: () => void
   videoInfo: VideoInfo
@@ -32,13 +34,14 @@ export function VideoPreview({
   onClipEndChange,
   onClipStartChange,
   onClearVideo,
+  onPreviewError,
   onResetTrim,
   onTogglePlayback,
   videoInfo,
   videoRef,
 }: VideoPreviewProps) {
   return (
-    <section className="overflow-hidden rounded-lg border border-border bg-card shadow-soft">
+    <section className="rounded-lg border border-border bg-card shadow-soft">
       <div className="flex flex-col gap-2 border-b border-border bg-card/95 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
         <div className="min-w-0">
           <h2 className="truncate text-sm font-semibold text-foreground">
@@ -60,23 +63,30 @@ export function VideoPreview({
           </div>
         </div>
 
-        <Button
-          aria-label="Remove selected video"
+        <Tooltip
           className="shrink-0 self-end sm:self-center"
-          disabled={isClearDisabled}
-          onClick={onClearVideo}
-          size="icon"
-          type="button"
-          variant="ghost"
+          content="Remove selected video."
+          fullWidth={false}
         >
-          <Trash2 />
-        </Button>
+          <span className="inline-flex">
+            <Button
+              aria-label="Remove selected video"
+              disabled={isClearDisabled}
+              onClick={onClearVideo}
+              size="icon"
+              type="button"
+              variant="ghost"
+            >
+              <Trash2 />
+            </Button>
+          </span>
+        </Tooltip>
       </div>
       <video
         className="aspect-video max-h-[52vh] w-full bg-black object-contain"
         ref={videoRef}
         src={videoInfo.videoUrl}
-        onError={(event) => console.error('erro video', event)}
+        onError={onPreviewError}
       />
       <PlayerControls
         currentTime={currentTime}

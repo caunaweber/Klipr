@@ -6,7 +6,6 @@ import { CompressionRequest } from './types/compression'
 import { protocol } from 'electron'
 import mime from 'mime-types'
 import fs from 'node:fs'
-import { Readable } from 'node:stream'
 import { terminateAllFfmpegProcesses } from './utils/process-registry.utils'
 import { getSelectedVideoPath } from './utils/selected-video-registry.utils'
 import { getGeneratedOutputPath } from './utils/generated-output-registry.utils'
@@ -28,6 +27,95 @@ let isCompressionActive = false
 interface ParsedRange {
   start: number
   end: number
+}
+
+function createVideoStreamBody(
+  filePath: string,
+  options?: {
+    start: number
+    end: number
+  }
+): ReadableStream<Uint8Array> {
+  const fileStream =
+    fs.createReadStream(
+      filePath,
+      options
+    )
+
+  let controller:
+    | ReadableStreamDefaultController<Uint8Array>
+    | null = null
+  let isSettled = false
+
+  const cleanup = () => {
+    fileStream.off('data', handleData)
+    fileStream.off('end', handleEnd)
+    fileStream.off('error', handleError)
+  }
+
+  const settle = (
+    action: () => void
+  ) => {
+    if (isSettled) {
+      return
+    }
+
+    isSettled = true
+    cleanup()
+    action()
+  }
+
+  const handleData = (
+    chunk: string | Buffer
+  ) => {
+    if (
+      isSettled ||
+      !controller
+    ) {
+      return
+    }
+
+    try {
+      controller.enqueue(
+        typeof chunk === 'string'
+          ? Buffer.from(chunk)
+          : chunk
+      )
+    } catch {
+      settle(() => {
+        fileStream.destroy()
+      })
+    }
+  }
+
+  const handleEnd = () => {
+    settle(() => {
+      controller?.close()
+    })
+  }
+
+  const handleError = (
+    error: Error
+  ) => {
+    settle(() => {
+      controller?.error(error)
+    })
+  }
+
+  fileStream.on('data', handleData)
+  fileStream.once('end', handleEnd)
+  fileStream.once('error', handleError)
+
+  return new ReadableStream<Uint8Array>({
+    start(streamController) {
+      controller = streamController
+    },
+    cancel() {
+      settle(() => {
+        fileStream.destroy()
+      })
+    },
+  })
 }
 
 function parseRangeHeader(
@@ -212,14 +300,13 @@ app.whenReady().then(() => {
 
         if (!range) {
 
-          const stream = Readable.toWeb(
-            fs.createReadStream(
+          const stream =
+            createVideoStreamBody(
               filePath
             )
-          )
 
           return new Response(
-            stream as unknown as BodyInit,
+            stream,
             {
               headers: {
                 'Content-Type':
@@ -253,18 +340,17 @@ app.whenReady().then(() => {
         const chunkSize =
           end - start + 1
 
-        const stream = Readable.toWeb(
-          fs.createReadStream(
+        const stream =
+          createVideoStreamBody(
             filePath,
             {
               start,
               end
             }
           )
-        )
 
         return new Response(
-          stream as unknown as BodyInit,
+          stream,
           {
             status: 206,
             headers: {

@@ -1,13 +1,11 @@
 import { useRef } from 'react'
 import './App.css'
 import {
-  AlertCircle,
-  CheckCircle2,
-  Loader2,
   Play,
   SlidersHorizontal,
   Square,
 } from 'lucide-react'
+import { AppToast } from './components/AppToast'
 import { AppTitleBar } from './components/AppTitleBar'
 import { CodecSelect } from './components/CodecSelect'
 import { CompressionProgress } from './components/CompressionProgress'
@@ -30,6 +28,7 @@ function App() {
     clearVideo,
     compressVideo,
     compressionResult,
+    dismissMessage,
     isCancelling,
     isCompressing,
     isSelectingVideo,
@@ -43,6 +42,7 @@ function App() {
     setCodec,
     setTargetSizeMB,
     setUseTwoPass,
+    showPreviewError,
     status,
     targetSizeMB,
     useTwoPass,
@@ -54,14 +54,21 @@ function App() {
     videoRef,
   })
 
-  const isCompressDisabled =
-    !videoInfo || Number(targetSizeMB) >= videoInfo.sizeMB
+  const numericTargetSizeMB = Number(targetSizeMB)
+  const isTargetSizeInvalid = videoInfo
+    ? !Number.isFinite(numericTargetSizeMB) ||
+      numericTargetSizeMB <= 0 ||
+      numericTargetSizeMB >= videoInfo.sizeMB
+    : false
+  const isCompressDisabled = !videoInfo || isTargetSizeInvalid
   const messageTone =
     status === 'success'
       ? 'success'
-      : status === 'error' || status === 'cancelled'
+      : status === 'error'
         ? 'error'
-        : 'info'
+        : status === 'cancelled'
+          ? 'neutral'
+          : 'info'
 
   const resetTrim = () => {
     if (!videoInfo) return
@@ -85,29 +92,13 @@ function App() {
   return (
     <>
       <AppTitleBar />
+      <AppToast
+        message={message}
+        onClose={dismissMessage}
+        tone={messageTone}
+      />
       <main className="min-h-[calc(100vh-2.25rem)] bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.16),transparent_34%),linear-gradient(135deg,#071923_0%,#0a222b_48%,#061116_100%)] px-4 py-3 text-foreground sm:px-5 lg:px-6">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-3">
-        {message && (
-          <section
-            className={`flex items-start gap-3 rounded-lg border px-3 py-2 text-sm shadow-soft ${
-              messageTone === 'success'
-                ? 'border-primary/50 bg-primary/10 text-foreground'
-                : messageTone === 'error'
-                  ? 'border-destructive/50 bg-destructive/10 text-foreground'
-                  : 'border-border bg-card text-foreground'
-            }`}
-          >
-            {messageTone === 'success' ? (
-              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-            ) : messageTone === 'error' ? (
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
-            ) : (
-              <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-primary" />
-            )}
-            <span className="min-w-0 break-words">{message}</span>
-          </section>
-        )}
-
         <section
           className={
             videoInfo
@@ -127,6 +118,7 @@ function App() {
                 onClipEndChange={setClipEnd}
                 onClipStartChange={setClipStart}
                 onClearVideo={clearVideo}
+                onPreviewError={showPreviewError}
                 onResetTrim={resetTrim}
                 onTogglePlayback={player.togglePlayback}
                 videoInfo={videoInfo}
@@ -134,7 +126,7 @@ function App() {
               />
             ) : (
               <VideoDropzone
-                error={status === 'error' ? message : null}
+                error={null}
                 isLoading={isSelectingVideo}
                 onDropVideo={selectDroppedVideo}
                 onSelectVideo={selectVideo}
@@ -157,6 +149,7 @@ function App() {
                     onCheckedChange={setUseTwoPass}
                   />
                   <TargetSizeInput
+                    sourceSizeMB={videoInfo.sizeMB}
                     value={targetSizeMB}
                     onValueChange={setTargetSizeMB}
                   />

@@ -1,5 +1,6 @@
 import { Pause, Play } from 'lucide-react'
 import { formatDuration } from '../utils/formatDuration'
+import { Tooltip } from './Tooltip'
 import { Button } from './ui/button'
 
 interface PlayerControlsProps {
@@ -17,15 +18,22 @@ export function PlayerControls({
 }: PlayerControlsProps) {
   return (
     <div className="flex flex-wrap items-center gap-3 border-t border-border bg-card/95 px-3 py-2.5 sm:px-4">
-      <Button
-        aria-label={isPlaying ? 'Pause video' : 'Play video'}
-        onClick={onTogglePlayback}
-        size="icon"
-        type="button"
-        variant="secondary"
+      <Tooltip
+        content={isPlaying ? 'Pause preview.' : 'Play preview.'}
+        fullWidth={false}
       >
-        {isPlaying ? <Pause /> : <Play />}
-      </Button>
+        <span className="inline-flex">
+          <Button
+            aria-label={isPlaying ? 'Pause video' : 'Play video'}
+            onClick={onTogglePlayback}
+            size="icon"
+            type="button"
+            variant="secondary"
+          >
+            {isPlaying ? <Pause /> : <Play />}
+          </Button>
+        </span>
+      </Tooltip>
 
       <div className="min-w-0 text-sm font-medium tabular-nums text-foreground">
         {formatDuration(currentTime)} / {formatDuration(duration)}
