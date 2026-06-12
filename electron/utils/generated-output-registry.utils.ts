@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto'
 const generatedOutputs = new Map<string, string>()
 
 export function registerGeneratedOutput(filePath: string) {
+  generatedOutputs.clear()
+  
   const id = randomUUID()
   generatedOutputs.set(id, filePath)
   return id
