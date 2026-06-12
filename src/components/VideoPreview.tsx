@@ -8,13 +8,15 @@ interface VideoPreviewProps {
 
 export function VideoPreview({ videoInfo, videoRef }: VideoPreviewProps) {
   return (
-    <video
-      ref={videoRef}
-      src={videoInfo.videoUrl}
-      controls
-      width={400}
-      onLoadedMetadata={() => console.log('video carregado')}
-      onError={(event) => console.error('erro video', event)}
-    />
+    <section className="overflow-hidden rounded-lg border border-border bg-card shadow-soft">
+      <video
+        className="aspect-video w-full bg-black object-contain"
+        ref={videoRef}
+        src={videoInfo.videoUrl}
+        controls
+        onLoadedMetadata={() => console.log('video carregado')}
+        onError={(event) => console.error('erro video', event)}
+      />
+    </section>
   )
 }

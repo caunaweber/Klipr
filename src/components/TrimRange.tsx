@@ -25,8 +25,14 @@ export function TrimRange({
   const endPercent = (clipEnd / duration) * 100
 
   return (
-    <section className="section">
-      <h3>Trim</h3>
+    <section className="rounded-lg border border-border bg-card p-5 shadow-soft">
+      <div className="mb-5">
+        <h3 className="text-base font-semibold">Trim</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {formatDuration(clipStart)} to {formatDuration(clipEnd)} (
+          {formatDuration(clipEnd - clipStart)})
+        </p>
+      </div>
 
       <Range
         step={0.1}
@@ -56,12 +62,12 @@ export function TrimRange({
               ...props.style,
               background: `linear-gradient(
                 to right,
-                #444 0%,
-                #444 ${startPercent}%,
-                #4caf50 ${startPercent}%,
-                #4caf50 ${endPercent}%,
-                #444 ${endPercent}%,
-                #444 100%
+                hsl(var(--muted)) 0%,
+                hsl(var(--muted)) ${startPercent}%,
+                hsl(var(--primary)) ${startPercent}%,
+                hsl(var(--primary)) ${endPercent}%,
+                hsl(var(--muted)) ${endPercent}%,
+                hsl(var(--muted)) 100%
               )`,
             }}
             className="trim-track"
@@ -77,11 +83,6 @@ export function TrimRange({
           />
         )}
       />
-
-      <p>
-        Clip: {formatDuration(clipStart)} to {formatDuration(clipEnd)} (
-        {formatDuration(clipEnd - clipStart)})
-      </p>
     </section>
   )
 }
