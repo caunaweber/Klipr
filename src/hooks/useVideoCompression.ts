@@ -80,13 +80,7 @@ export function useVideoCompression() {
         throw new Error('Unsupported video format')
       }
 
-      const filePath = window.videoCompressor.getPathForFile(file)
-
-      if (!filePath) {
-        throw new Error('Could not resolve dropped file path')
-      }
-
-      const info = await window.videoCompressor.selectDroppedVideo(filePath)
+      const info = await window.videoCompressor.selectDroppedVideo(file)
 
       applySelectedVideo(info)
     } catch (error) {

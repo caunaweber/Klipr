@@ -28,9 +28,7 @@ interface Window {
   videoCompressor: {
     selectVideo: () => Promise<VideoInfo | null>
 
-    selectDroppedVideo: (filePath: string) => Promise<VideoInfo>
-
-    getPathForFile: (file: File) => string
+    selectDroppedVideo: (file: File) => Promise<VideoInfo>
 
     compressVideo: (
       request: import('./types/compression').CompressionRequest

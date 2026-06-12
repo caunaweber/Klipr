@@ -7,11 +7,11 @@ contextBridge.exposeInMainWorld('videoCompressor', {
   selectVideo: (): Promise<VideoInfo | null> =>
     ipcRenderer.invoke('select-video'),
 
-  selectDroppedVideo: (filePath: string): Promise<VideoInfo> =>
-    ipcRenderer.invoke('select-dropped-video', filePath),
-
-  getPathForFile: (file: File): string =>
-    webUtils.getPathForFile(file),
+  selectDroppedVideo: (file: File): Promise<VideoInfo> =>
+    ipcRenderer.invoke(
+      'select-dropped-video',
+      webUtils.getPathForFile(file)
+    ),
 
   compressVideo: (request: CompressionRequest): Promise<CompressionResult> =>
     ipcRenderer.invoke('compress-video', request),
