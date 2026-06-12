@@ -97,16 +97,16 @@ function App() {
         onClose={dismissMessage}
         tone={messageTone}
       />
-      <main className="min-h-[calc(100vh-2.25rem)] bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.16),transparent_34%),linear-gradient(135deg,#071923_0%,#0a222b_48%,#061116_100%)] px-4 py-3 text-foreground sm:px-5 lg:px-6">
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-3">
+      <main className="box-border h-[calc(100vh-2.25rem)] overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(20,184,166,0.16),transparent_34%),linear-gradient(135deg,#071923_0%,#0a222b_48%,#061116_100%)] px-4 py-3 text-foreground sm:px-5 lg:px-6">
+      <div className="mx-auto flex h-full w-full max-w-6xl flex-col gap-3 overflow-hidden">
         <section
           className={
             videoInfo
-              ? 'grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]'
-              : 'grid gap-3'
+              ? 'grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_320px]'
+              : 'grid min-h-0 flex-1 gap-3'
           }
         >
-          <div className={videoInfo ? 'flex min-w-0 flex-col gap-3' : 'mx-auto flex w-full max-w-3xl flex-col gap-3'}>
+          <div className={videoInfo ? 'flex min-h-0 min-w-0 flex-col gap-3' : 'mx-auto flex min-h-0 w-full max-w-3xl flex-col gap-3'}>
             {videoInfo ? (
               <VideoPreview
                 clipEnd={clipEnd}
@@ -135,7 +135,7 @@ function App() {
           </div>
 
           {videoInfo && (
-            <aside className="flex flex-col gap-3">
+            <aside className="flex min-h-0 flex-col gap-3 overflow-hidden">
               <section className="rounded-lg border border-border bg-card p-4 shadow-soft">
                 <div className="mb-3 flex items-center gap-2">
                   <SlidersHorizontal className="h-4 w-4 text-primary" />

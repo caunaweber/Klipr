@@ -90,26 +90,20 @@ async function terminateFfmpegProcess(
     return
   }
 
-  await new Promise<void>((resolve) => {
-    let settled = false
+  await Promise.race([
+    control.stopped,
+    new Promise<void>((resolve) => {
+      const timer = setTimeout(() => {
+        control.unregister()
+        resolve()
+      }, timeoutMs)
 
-    const cleanup = () => {
-      if (settled) {
-        return
-      }
-
-      settled = true
-
-      if (timer) {
+      control.stopped.finally(() => {
         clearTimeout(timer)
-      }
-
-      control.unregister()
-      resolve()
-    }
-
-    const timer = setTimeout(cleanup, timeoutMs)
-  })
+        resolve()
+      })
+    })
+  ])
 }
 
 export function createCompressionCancelledError() {

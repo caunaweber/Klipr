@@ -41,7 +41,7 @@ export function VideoPreview({
   videoRef,
 }: VideoPreviewProps) {
   return (
-    <section className="rounded-lg border border-border bg-card shadow-soft">
+    <section className="relative z-10 flex min-h-0 flex-1 flex-col overflow-visible rounded-lg border border-border bg-card shadow-soft">
       <div className="flex flex-col gap-2 border-b border-border bg-card/95 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
         <div className="min-w-0">
           <h2 className="truncate text-sm font-semibold text-foreground">
@@ -83,7 +83,8 @@ export function VideoPreview({
         </Tooltip>
       </div>
       <video
-        className="aspect-video max-h-[52vh] w-full bg-black object-contain"
+        className="min-h-0 flex-1 bg-black object-contain"
+        preload="auto"
         ref={videoRef}
         src={videoInfo.videoUrl}
         onError={onPreviewError}

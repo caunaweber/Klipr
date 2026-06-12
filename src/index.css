@@ -38,8 +38,14 @@
     @apply border-border;
   }
 
+  html,
+  body,
+  #root {
+    @apply h-full overflow-hidden;
+  }
+
   body {
-    @apply min-h-screen min-w-80 bg-background text-foreground;
+    @apply min-w-80 bg-background text-foreground;
   }
 
   button,

@@ -6,7 +6,7 @@ export function AppTitleBar() {
       className="app-titlebar flex h-9 select-none items-center justify-between border-b border-border bg-background/95 text-foreground"
     >
       <div className="flex min-w-0 items-center gap-2 px-3">
-        <span className="truncate text-sm font-semibold">Video Compressor</span>
+        <span className="truncate text-sm font-semibold">klipr</span>
       </div>
 
       <div className="app-titlebar-controls flex h-full shrink-0">

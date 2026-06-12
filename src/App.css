@@ -2,6 +2,7 @@
   width: 100%;
   height: 6px;
   border-radius: 999px;
+  overflow: visible;
 }
 
 .trim-thumb {
@@ -39,6 +40,17 @@
 
 .trim-thumb:hover .trim-thumb-tooltip {
   opacity: 1;
+}
+
+.trim-thumb-start .trim-thumb-tooltip {
+  left: 0;
+  transform: none;
+}
+
+.trim-thumb-end .trim-thumb-tooltip {
+  left: auto;
+  right: 0;
+  transform: none;
 }
 
 .trim-thumb:focus-visible {

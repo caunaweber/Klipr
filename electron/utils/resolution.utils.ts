@@ -6,22 +6,65 @@ export function calculateResolution(
   bitrateKbps: number
 ): Resolution {
 
-  if (bitrateKbps < 700 && height > 480) {
+  const maxLongEdge =
+    getMaxLongEdge(
+      height,
+      bitrateKbps
+    )
+
+  if (!maxLongEdge) {
     return {
-      width: 854,
-      height: 480
+      width: makeEven(width),
+      height: makeEven(height)
     }
+  }
+
+  const longEdge =
+    Math.max(
+      width,
+      height
+    )
+
+  if (longEdge <= maxLongEdge) {
+    return {
+      width: makeEven(width),
+      height: makeEven(height)
+    }
+  }
+
+  const scale =
+    maxLongEdge / longEdge
+
+  return {
+    width: makeEven(
+      Math.round(width * scale)
+    ),
+    height: makeEven(
+      Math.round(height * scale)
+    )
+  }
+}
+
+function getMaxLongEdge(
+  height: number,
+  bitrateKbps: number
+) {
+  if (bitrateKbps < 700 && height > 480) {
+    return 854
   }
 
   if (bitrateKbps < 2000 && height > 720) {
-    return {
-      width: 1280,
-      height: 720
-    }
+    return 1280
   }
 
-  return {
-    width,
-    height
-  }
+  return null
+}
+
+function makeEven(
+  value: number
+) {
+  return Math.max(
+    2,
+    Math.round(value / 2) * 2
+  )
 }

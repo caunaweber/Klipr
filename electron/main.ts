@@ -12,6 +12,18 @@ import { getGeneratedOutputPath } from './utils/generated-output-registry.utils'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'video',
+    privileges: {
+      secure: true,
+      standard: true,
+      stream: true,
+      supportFetchAPI: true,
+    },
+  },
+])
+
 process.env.APP_ROOT = path.join(__dirname, '..')
 
 export const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
@@ -167,6 +179,20 @@ function getVideoContentType(filePath: string) {
   return 'application/octet-stream'
 }
 
+function getVideoIdFromRequestUrl(requestUrl: string) {
+  const url = new URL(requestUrl)
+
+  if (url.hostname === 'local') {
+    return decodeURIComponent(
+      url.pathname.replace(/^\/+/, '')
+    )
+  }
+
+  return decodeURIComponent(
+    url.hostname || requestUrl.slice('video://'.length)
+  ).replace(/\/+$/, '')
+}
+
 function createWindow() {
   win = new BrowserWindow({
     width: 1200,
@@ -283,10 +309,8 @@ app.whenReady().then(() => {
       try {
 
         const videoId =
-          decodeURIComponent(
-            request.url.slice(
-              'video://'.length
-            )
+          getVideoIdFromRequestUrl(
+            request.url
           )
 
         const filePath =

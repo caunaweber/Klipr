@@ -105,7 +105,9 @@ export function TrimRange({
           <div
             {...props}
             onMouseDown={() => setActiveThumb(index)}
-            className="trim-thumb group/trim-thumb"
+            className={`trim-thumb group/trim-thumb ${
+              index === 0 ? 'trim-thumb-start' : 'trim-thumb-end'
+            }`}
           >
             <span className="trim-thumb-tooltip">
               {index === 0 ? 'Start' : 'End'}:{' '}

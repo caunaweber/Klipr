@@ -135,7 +135,7 @@ export async function getVideoInfo(filePath: string, id: string): Promise<VideoI
   return {
     id,
     fileName: path.basename(filePath),
-    videoUrl: `video://${id}`,
+    videoUrl: `video://local/${id}`,
     sizeMB: Number((stats.size / (1024 * 1024)).toFixed(2)),
     duration: Number(data.format.duration),
     width: videoStream.width,
