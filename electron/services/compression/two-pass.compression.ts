@@ -40,8 +40,12 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
     const isTrimmed =
         start > 0 || end < duration
 
-    const trimArgs = isTrimmed
-        ? ['-ss', String(start), '-t', String(clipDuration)]
+    const seekArgs = start > 0
+        ? ['-ss', String(start)]
+        : []
+
+    const durationArgs = isTrimmed
+        ? ['-t', String(clipDuration)]
         : []
 
     const { bitrateKbps, audioBitrateKbps } = calculateVideoBitrate(targetSizeMB, clipDuration)
@@ -67,10 +71,12 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
         const pass1Process = spawn(ffmpeg, [
             '-y',
 
-            ...trimArgs,
+            ...seekArgs,
 
             '-i',
             filePath,
+
+            ...durationArgs,
 
             '-fps_mode',
             'cfr',
@@ -178,10 +184,12 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
         const ffmpegProcess = spawn(ffmpeg, [
             '-y',
 
-            ...trimArgs,
+            ...seekArgs,
 
             '-i',
             filePath,
+
+            ...durationArgs,
 
             '-fps_mode',
             'cfr',

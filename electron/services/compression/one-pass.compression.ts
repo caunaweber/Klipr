@@ -36,8 +36,12 @@ export async function onePassCompression(options: CompressionOptions): Promise<s
     const isTrimmed =
         start > 0 || end < duration
 
-    const trimArgs = isTrimmed
-        ? ['-ss', String(start), '-t', String(clipDuration)]
+    const seekArgs = start > 0
+        ? ['-ss', String(start)]
+        : []
+
+    const durationArgs = isTrimmed
+        ? ['-t', String(clipDuration)]
         : []
 
     const { bitrateKbps, audioBitrateKbps } = calculateVideoBitrate(targetSizeMB, clipDuration)
@@ -55,10 +59,12 @@ export async function onePassCompression(options: CompressionOptions): Promise<s
             [
                 '-y',
 
-                ...trimArgs,
+                ...seekArgs,
 
                 '-i',
                 filePath,
+
+                ...durationArgs,
 
                 '-preset',
                 'slow',
