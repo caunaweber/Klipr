@@ -12,16 +12,20 @@ interface VideoPreviewProps {
   clipStart: number
   currentTime: number
   duration: number
+  isMuted: boolean
   isClearDisabled: boolean
   isPlaying: boolean
+  onChangeVolume: (volume: number) => void
   onClipEndChange: (clipEnd: number) => void
   onClipStartChange: (clipStart: number) => void
   onClearVideo: () => void
   onPreviewError: () => void
   onResetTrim: () => void
+  onToggleMute: () => void
   onTogglePlayback: () => void
   videoInfo: VideoInfo
   videoRef: RefObject<HTMLVideoElement>
+  volume: number
 }
 
 export function VideoPreview({
@@ -29,16 +33,20 @@ export function VideoPreview({
   clipStart,
   currentTime,
   duration,
+  isMuted,
   isClearDisabled,
   isPlaying,
+  onChangeVolume,
   onClipEndChange,
   onClipStartChange,
   onClearVideo,
   onPreviewError,
   onResetTrim,
+  onToggleMute,
   onTogglePlayback,
   videoInfo,
   videoRef,
+  volume,
 }: VideoPreviewProps) {
   return (
     <section className="video-preview-shell relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border/80 bg-[linear-gradient(180deg,hsl(var(--card))_0%,rgb(3_2_7_/_0.94)_100%)] p-1 shadow-[0_28px_90px_rgb(0_0_0_/_0.48)] backdrop-blur transition-all duration-300 hover:border-primary/35 hover:shadow-[0_32px_100px_rgb(0_0_0_/_0.56),0_0_42px_rgb(124_58_237_/_0.12)]">
@@ -96,8 +104,12 @@ export function VideoPreview({
       <PlayerControls
         currentTime={currentTime}
         duration={duration}
+        isMuted={isMuted}
         isPlaying={isPlaying}
+        onChangeVolume={onChangeVolume}
+        onToggleMute={onToggleMute}
         onTogglePlayback={onTogglePlayback}
+        volume={volume}
       />
       <TrimRange
         clipEnd={clipEnd}

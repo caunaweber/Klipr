@@ -53,6 +53,7 @@ function App() {
   const player = useVideoPlayer({
     clipEnd,
     clipStart,
+    sourceKey: videoInfo?.videoUrl,
     videoRef,
   })
 
@@ -135,15 +136,19 @@ function App() {
                 currentTime={player.currentTime}
                 duration={player.duration || videoInfo.duration}
                 isClearDisabled={isCompressing || isVideoLeaving}
+                isMuted={player.isMuted}
                 isPlaying={player.isPlaying}
+                onChangeVolume={player.changeVolume}
                 onClipEndChange={setClipEnd}
                 onClipStartChange={setClipStart}
                 onClearVideo={handleClearVideo}
                 onPreviewError={showPreviewError}
                 onResetTrim={resetTrim}
+                onToggleMute={player.toggleMute}
                 onTogglePlayback={player.togglePlayback}
                 videoInfo={videoInfo}
                 videoRef={videoRef}
+                volume={player.volume}
               />
             ) : (
               <VideoDropzone

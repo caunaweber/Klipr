@@ -3,17 +3,21 @@ import { useCallback, useEffect, useState, type RefObject } from 'react'
 interface UseVideoPlayerOptions {
   clipEnd: number
   clipStart: number
+  sourceKey?: string | null
   videoRef: RefObject<HTMLVideoElement>
 }
 
 export function useVideoPlayer({
   clipEnd,
   clipStart,
+  sourceKey,
   videoRef,
 }: UseVideoPlayerOptions) {
   const [currentTime, setCurrentTime] = useState(clipStart)
   const [duration, setDuration] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
+  const [isMuted, setIsMuted] = useState(false)
+  const [volume, setVolume] = useState(0.5)
 
   const pause = useCallback(() => {
     const video = videoRef.current
@@ -57,6 +61,59 @@ export function useVideoPlayer({
     [clipEnd, clipStart, videoRef],
   )
 
+  const changeVolume = useCallback(
+    (nextVolume: number) => {
+      const clampedVolume = Math.min(Math.max(nextVolume, 0), 1)
+      const video = videoRef.current
+
+      setVolume(clampedVolume)
+      setIsMuted(clampedVolume === 0)
+
+      if (!video) return
+
+      video.volume = clampedVolume
+      video.muted = clampedVolume === 0
+    },
+    [videoRef],
+  )
+
+  const toggleMute = useCallback(() => {
+    const video = videoRef.current
+
+    if (isMuted || volume === 0) {
+      const restoredVolume = volume === 0 ? 0.5 : volume
+
+      setVolume(restoredVolume)
+      setIsMuted(false)
+
+      if (!video) return
+
+      video.volume = restoredVolume
+      video.muted = false
+      return
+    }
+
+    setIsMuted(true)
+
+    if (!video) return
+
+    video.muted = true
+  }, [isMuted, videoRef, volume])
+
+  useEffect(() => {
+    const video = videoRef.current
+
+    setIsPlaying(false)
+    setVolume(0.5)
+    setIsMuted(false)
+
+    if (!video) return
+
+    video.pause()
+    video.volume = 0.5
+    video.muted = false
+  }, [sourceKey, videoRef])
+
   useEffect(() => {
     const video = videoRef.current
     if (!video) return
@@ -97,7 +154,27 @@ export function useVideoPlayer({
       video.removeEventListener('pause', handlePause)
       video.removeEventListener('ended', handlePause)
     }
-  }, [clipEnd, clipStart, videoRef])
+  }, [clipEnd, clipStart, sourceKey, videoRef])
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+
+    const applyAudioSettings = () => {
+      video.volume = volume
+      video.muted = isMuted || volume === 0
+    }
+
+    video.addEventListener('loadedmetadata', applyAudioSettings)
+    video.addEventListener('loadeddata', applyAudioSettings)
+
+    applyAudioSettings()
+
+    return () => {
+      video.removeEventListener('loadedmetadata', applyAudioSettings)
+      video.removeEventListener('loadeddata', applyAudioSettings)
+    }
+  }, [isMuted, videoRef, volume])
 
   useEffect(() => {
     const video = videoRef.current
@@ -111,11 +188,15 @@ export function useVideoPlayer({
 
   return {
     currentTime,
+    changeVolume,
     duration,
+    isMuted,
     isPlaying,
     pause,
     play,
     seek,
     togglePlayback,
+    toggleMute,
+    volume,
   }
 }
