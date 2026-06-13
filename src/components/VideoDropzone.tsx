@@ -51,8 +51,8 @@ export function VideoDropzone({
   return (
     <div
       className={cn(
-        'group flex min-h-[360px] w-full flex-col items-center justify-center rounded-lg border border-dashed border-border/90 bg-card/70 p-6 text-center shadow-soft outline-none backdrop-blur transition-all hover:border-primary/70 hover:bg-card/90 hover:shadow-glow focus-visible:ring-2 focus-visible:ring-ring sm:p-8',
-        isDragging && 'border-primary bg-primary/10 shadow-glow',
+        'group flex min-h-[360px] w-full flex-col items-center justify-center rounded-lg border border-dashed border-border/90 bg-card/70 p-6 text-center shadow-soft outline-none backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/70 hover:bg-card/90 hover:shadow-glow focus-visible:ring-2 focus-visible:ring-ring sm:p-8',
+        isDragging && 'scale-[1.01] border-primary bg-primary/10 shadow-glow',
         isLoading ? 'cursor-wait border-primary/60 bg-card/90' : 'cursor-pointer',
         error && 'border-destructive/70',
       )}
@@ -70,8 +70,8 @@ export function VideoDropzone({
     >
       <div
         className={cn(
-          'mb-4 rounded-full border border-border/80 bg-accent/80 p-3 text-accent-foreground shadow-glow transition-transform group-hover:scale-105',
-          isDragging && 'scale-105 border-primary bg-primary text-primary-foreground',
+          'dropzone-upload-icon mb-4 rounded-full border border-border/80 bg-accent/80 p-3 text-accent-foreground shadow-glow transition-all duration-300 group-hover:-translate-y-1 group-hover:scale-105',
+          isDragging && 'scale-110 border-primary bg-primary text-primary-foreground',
         )}
       >
         {isLoading ? (

@@ -106,7 +106,7 @@ function App() {
               : 'grid min-h-0 flex-1 gap-3'
           }
         >
-          <div className={videoInfo ? 'flex min-h-0 min-w-0 flex-col gap-3' : 'mx-auto flex min-h-0 w-full max-w-3xl flex-col gap-3'}>
+          <div className={videoInfo ? 'app-panel-enter flex min-h-0 min-w-0 flex-col gap-3' : 'app-panel-enter mx-auto flex min-h-0 w-full max-w-3xl flex-col justify-center gap-3'}>
             {videoInfo ? (
               <VideoPreview
                 clipEnd={clipEnd}
@@ -135,7 +135,7 @@ function App() {
           </div>
 
           {videoInfo && (
-            <aside className="flex min-h-0 flex-col gap-3 overflow-hidden">
+            <aside className="app-panel-enter app-panel-enter-delay flex min-h-0 flex-col gap-3 overflow-hidden">
               <section className="rounded-lg border border-border/80 bg-card/85 p-4 shadow-soft backdrop-blur">
                 <div className="mb-3 flex items-center gap-2">
                   <SlidersHorizontal className="h-4 w-4 text-primary" />

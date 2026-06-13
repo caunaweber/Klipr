@@ -75,6 +75,42 @@
   transform-origin: left;
 }
 
+.app-panel-enter {
+  animation: app-panel-enter 260ms ease-out both;
+}
+
+.app-panel-enter-delay {
+  animation-delay: 70ms;
+}
+
+.group:hover .dropzone-upload-icon,
+.group:focus-visible .dropzone-upload-icon {
+  animation: dropzone-upload-float 1.6s ease-in-out infinite;
+}
+
+@keyframes app-panel-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.625rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes dropzone-upload-float {
+  0%,
+  100% {
+    transform: translateY(-0.25rem) scale(1.05);
+  }
+
+  50% {
+    transform: translateY(-0.55rem) scale(1.08);
+  }
+}
+
 @keyframes toast-progress {
   from {
     transform: scaleX(1);
