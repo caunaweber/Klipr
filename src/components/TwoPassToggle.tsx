@@ -20,14 +20,19 @@ export function TwoPassToggle({
         )}
         onClick={() => onCheckedChange(!checked)}
       >
-        <span className="text-sm font-medium text-foreground">
-          2-pass compression
+        <span className="flex min-w-0 flex-col">
+          <span className="text-sm font-medium text-foreground">
+            2-pass compression
+          </span>
+          <span className="text-xs text-muted-foreground">
+            More accurate target size
+          </span>
         </span>
         <button
           aria-checked={checked}
           aria-label="Toggle 2-pass compression"
           className={cn(
-            'relative h-6 w-11 shrink-0 rounded-full border border-input bg-muted transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+            'relative h-6 w-11 shrink-0 rounded-full border border-input bg-muted transition-colors outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background',
             checked && 'border-primary bg-primary shadow-glow',
           )}
           onClick={(event) => {

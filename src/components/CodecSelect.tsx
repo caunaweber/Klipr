@@ -64,14 +64,16 @@ export function CodecSelect({ codec, onCodecChange }: CodecSelectProps) {
 
   return (
     <div className="relative flex flex-col gap-2" ref={rootRef}>
-      <span className="text-sm font-medium text-foreground">Codec</span>
+      <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        Codec
+      </span>
       <Tooltip content={tooltip}>
         <button
           aria-expanded={isOpen}
           aria-haspopup="listbox"
           className={cn(
-            'flex h-11 w-full items-center justify-between rounded-md border border-input bg-background/70 px-3 text-left text-sm text-foreground shadow-sm outline-none transition-colors hover:border-primary/60 hover:bg-accent/40 focus:border-ring focus:ring-2 focus:ring-ring/20',
-            isOpen && 'border-primary/80 bg-accent/40 ring-2 ring-ring/20',
+            'flex h-11 w-full items-center justify-between rounded-md border border-input bg-background/70 px-3 text-left text-sm font-medium text-foreground shadow-sm outline-none transition-colors hover:border-primary/60 hover:bg-accent/40 focus:border-ring focus:ring-1 focus:ring-ring/40',
+            isOpen && 'border-primary/80 bg-accent/40 ring-1 ring-ring/40',
           )}
           onClick={(event) => {
             event.preventDefault()

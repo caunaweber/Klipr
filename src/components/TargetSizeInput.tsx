@@ -38,8 +38,8 @@ export function TargetSizeInput({
     onValueChange(String(nextValue))
   }
   const inputClassName = cn(
-    'h-10 w-full rounded-md border border-input bg-background/70 px-3 pr-20 text-sm text-foreground shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/20',
-    isInvalid && 'border-destructive focus:border-destructive focus:ring-destructive/20',
+    'h-10 w-full rounded-md border border-input bg-background/70 px-3 pr-20 text-sm font-medium text-foreground shadow-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring/40',
+    isInvalid && 'border-destructive focus:border-destructive focus:ring-1 focus:ring-destructive/30',
   )
   const input = (
     <div className="relative">
@@ -54,7 +54,7 @@ export function TargetSizeInput({
       <div className="absolute right-1.5 top-1/2 flex -translate-y-1/2 overflow-hidden rounded-md border border-border/80 bg-card/80">
         <button
           aria-label="Decrease target size"
-          className="flex h-7 w-8 items-center justify-center text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex h-7 w-8 items-center justify-center text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           onClick={() => stepTargetSize(-1)}
           type="button"
         >
@@ -63,7 +63,7 @@ export function TargetSizeInput({
         <div className="w-px bg-border/80" />
         <button
           aria-label="Increase target size"
-          className="flex h-7 w-8 items-center justify-center text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex h-7 w-8 items-center justify-center text-muted-foreground transition-colors hover:bg-accent/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
           onClick={() => stepTargetSize(1)}
           type="button"
         >
@@ -76,7 +76,7 @@ export function TargetSizeInput({
   return (
     <div className="flex flex-col gap-2">
       <label
-        className="text-sm font-medium text-foreground"
+        className="text-xs font-medium uppercase tracking-wide text-muted-foreground"
         htmlFor="target-size"
       >
         Target size (MB)

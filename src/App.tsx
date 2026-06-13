@@ -137,10 +137,24 @@ function App() {
 
           {videoInfo && (
             <aside className="app-panel-enter app-panel-enter-delay flex min-h-0 flex-col gap-3 overflow-hidden">
-              <section className="rounded-lg border border-border/80 bg-card/85 p-4 shadow-soft backdrop-blur">
+              <section
+                className={cn(
+                  'relative overflow-hidden rounded-lg border border-border/80 bg-card/85 p-4 shadow-soft backdrop-blur transition-colors',
+                  isCompressing && 'compression-panel-active border-primary/35',
+                )}
+              >
                 <div className="mb-3 flex items-center gap-2">
-                  <SlidersHorizontal className="h-4 w-4 text-primary" />
-                  <h2 className="text-base font-semibold">Compression</h2>
+                  <span className="flex h-7 w-7 items-center justify-center rounded-md border border-primary/20 bg-primary/10 text-primary">
+                    <SlidersHorizontal className="h-3.5 w-3.5" />
+                  </span>
+                  <div className="min-w-0">
+                    <h2 className="text-sm font-semibold text-foreground">
+                      Compression
+                    </h2>
+                    <p className="text-xs text-muted-foreground">
+                      Output settings
+                    </p>
+                  </div>
                 </div>
 
                 <div className="flex flex-col gap-3">
