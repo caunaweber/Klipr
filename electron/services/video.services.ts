@@ -11,11 +11,13 @@ import { CompressionRequest, CompressionResult } from '../types/compression'
 import { validateCompressionParameters } from '../utils/compression-validation.utils'
 import { getSelectedVideoPath, registerSelectedVideo } from '../utils/selected-video-registry.utils'
 import { registerGeneratedOutput } from '../utils/generated-output-registry.utils'
+import { resolvePackagedBinaryPath } from '../utils/binary-path.utils'
 
 const execFileAsync = promisify(execFile)
 
 const require = createRequire(import.meta.url)
 const ffprobe = require('ffprobe-static')
+const ffprobePath = resolvePackagedBinaryPath(ffprobe.path)
 
 const SUPPORTED_VIDEO_EXTENSIONS = new Set(['.mp4', '.avi', '.mkv'])
 
@@ -106,7 +108,7 @@ export async function selectDroppedVideo(filePath: unknown): Promise<VideoInfo> 
 export async function getVideoInfo(filePath: string, id: string): Promise<VideoInfo> {
   const stats = fs.statSync(filePath)
   const { stdout } = await execFileAsync(
-    ffprobe.path,
+    ffprobePath,
     [
       '-v',
       'quiet',

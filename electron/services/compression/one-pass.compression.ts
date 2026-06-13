@@ -6,9 +6,11 @@ import { attachProgressListener, captureStderr } from '../../utils/ffmpeg.utils'
 import { calculateResolution } from '../../utils/resolution.utils'
 import { buildOutputPath, removeFileIfExists } from '../../utils/file.utils'
 import { createCompressionCancelledError, registerFfmpegProcess } from '../../utils/process-registry.utils'
+import { resolvePackagedBinaryPath } from '../../utils/binary-path.utils'
 
 const require = createRequire(import.meta.url)
 const ffmpeg = require('ffmpeg-static')
+const ffmpegPath = resolvePackagedBinaryPath(ffmpeg)
 
 export async function onePassCompression(options: CompressionOptions): Promise<string> {
 
@@ -55,7 +57,7 @@ export async function onePassCompression(options: CompressionOptions): Promise<s
     return new Promise((resolve, reject) => {
 
         const ffmpegProcess = spawn(
-            ffmpeg,
+            ffmpegPath,
             [
                 '-y',
 
