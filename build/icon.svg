@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Klipr app icon</title>
+  <desc id="desc">Minimal Klipr icon with a gradient background and a clean K letter.</desc>
+  <defs>
+    <linearGradient id="background" x1="128" y1="96" x2="896" y2="928" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#151328"/>
+      <stop offset="0.45" stop-color="#070611"/>
+      <stop offset="1" stop-color="#020204"/>
+    </linearGradient>
+    <radialGradient id="primaryGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(260 110) rotate(49) scale(720)">
+      <stop offset="0" stop-color="#4f46e5" stop-opacity=".46"/>
+      <stop offset=".56" stop-color="#581c87" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#020204" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="secondaryGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(850 220) rotate(128) scale(600)">
+      <stop offset="0" stop-color="#7c3aed" stop-opacity=".34"/>
+      <stop offset=".62" stop-color="#2563eb" stop-opacity=".16"/>
+      <stop offset="1" stop-color="#020204" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1024" height="1024" rx="224" fill="url(#background)"/>
+  <rect width="1024" height="1024" rx="224" fill="url(#primaryGlow)"/>
+  <rect width="1024" height="1024" rx="224" fill="url(#secondaryGlow)"/>
+  <rect x="44" y="44" width="936" height="936" rx="190" fill="none" stroke="#fff" stroke-opacity=".08" stroke-width="24"/>
+
+  <text
+    x="512"
+    y="704"
+    fill="#f8f7ff"
+    font-family="Inter, Segoe UI, Arial, sans-serif"
+    font-size="612"
+    font-weight="850"
+    letter-spacing="0"
+    text-anchor="middle">K</text>
+</svg>
