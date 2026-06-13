@@ -41,8 +41,8 @@ export function VideoPreview({
   videoRef,
 }: VideoPreviewProps) {
   return (
-    <section className="relative z-10 flex min-h-0 flex-1 flex-col overflow-visible rounded-lg border border-border/80 bg-card/85 shadow-soft shadow-black/40 backdrop-blur before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:z-10 before:h-px before:bg-white/12">
-      <div className="relative z-10 flex flex-col gap-2 border-b border-border/80 bg-card/70 px-3 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:px-4">
+    <section className="video-preview-shell relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border/80 bg-[linear-gradient(180deg,hsl(var(--card))_0%,rgb(3_2_7_/_0.94)_100%)] p-1 shadow-[0_28px_90px_rgb(0_0_0_/_0.48)] backdrop-blur transition-all duration-300 hover:border-primary/35 hover:shadow-[0_32px_100px_rgb(0_0_0_/_0.56),0_0_42px_rgb(124_58_237_/_0.12)]">
+      <div className="relative z-10 flex flex-col gap-2 rounded-t-md border border-border/70 bg-background/50 px-3 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:px-4">
         <div className="min-w-0">
           <h2 className="truncate text-sm font-semibold text-foreground">
             {videoInfo.fileName}
@@ -82,10 +82,11 @@ export function VideoPreview({
           </span>
         </Tooltip>
       </div>
-      <div className="relative min-h-0 flex-1 overflow-hidden bg-black shadow-[inset_0_0_0_1px_rgb(255_255_255_/_0.04),inset_0_18px_60px_rgb(0_0_0_/_0.38)]">
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-16 bg-[linear-gradient(180deg,rgb(255_255_255_/_0.06),transparent)]" />
+      <div className="relative my-1 min-h-0 flex-1 overflow-hidden rounded-md border border-primary/15 bg-black shadow-[inset_0_0_0_1px_rgb(255_255_255_/_0.05),inset_0_0_0_2px_rgb(0_0_0_/_0.68),inset_0_22px_70px_rgb(0_0_0_/_0.46),0_0_34px_rgb(79_70_229_/_0.12)]">
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-20 bg-[linear-gradient(180deg,rgb(255_255_255_/_0.08),transparent)]" />
+        <div className="pointer-events-none absolute inset-0 z-10 rounded-md ring-1 ring-inset ring-primary/15" />
         <video
-          className="h-full w-full bg-black object-contain"
+          className="h-full w-full rounded-[calc(0.375rem-1px)] bg-black object-contain"
           preload="auto"
           ref={videoRef}
           src={videoInfo.videoUrl}

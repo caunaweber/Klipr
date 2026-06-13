@@ -1,16 +1,22 @@
 import { cn } from '../lib/utils'
 
 interface CompressionProgressProps {
+  isComplete?: boolean
   progress: number
 }
 
-export function CompressionProgress({ progress }: CompressionProgressProps) {
+export function CompressionProgress({
+  isComplete = false,
+  progress,
+}: CompressionProgressProps) {
   const normalizedProgress = Math.min(
     100,
     Math.max(0, Math.round(progress)),
   )
   const progressLabel =
-    normalizedProgress >= 100
+    isComplete
+      ? 'Complete'
+      : normalizedProgress >= 100
       ? 'Finalizing'
       : normalizedProgress > 0
         ? 'Compressing'

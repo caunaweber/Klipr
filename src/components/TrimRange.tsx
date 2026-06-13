@@ -25,12 +25,20 @@ export function TrimRange({
   videoRef,
 }: TrimRangeProps) {
   const [activeThumb, setActiveThumb] = useState(0)
+  const [isResetAnimating, setIsResetAnimating] = useState(false)
 
   const startPercent = (clipStart / duration) * 100
   const endPercent = (clipEnd / duration) * 100
+  const handleResetTrim = () => {
+    setIsResetAnimating(false)
+    window.requestAnimationFrame(() => {
+      setIsResetAnimating(true)
+    })
+    onResetTrim()
+  }
 
   return (
-    <div className="border-t border-border/80 bg-card/55 px-3 pb-4 pt-3 backdrop-blur sm:px-4">
+    <div className="mt-1 rounded-b-md border border-border/70 bg-background/45 px-3 pb-4 pt-3 shadow-[inset_0_1px_0_rgb(255_255_255_/_0.04)] backdrop-blur sm:px-4">
       <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold">Trim</h3>
@@ -48,12 +56,15 @@ export function TrimRange({
           <span className="inline-flex">
             <Button
               aria-label="Reset trim"
-              onClick={onResetTrim}
+              onClick={handleResetTrim}
               size="sm"
               type="button"
               variant="outline"
             >
-              <RotateCcw />
+              <RotateCcw
+                className={isResetAnimating ? 'trim-reset-spin' : undefined}
+                onAnimationEnd={() => setIsResetAnimating(false)}
+              />
               Reset
             </Button>
           </span>

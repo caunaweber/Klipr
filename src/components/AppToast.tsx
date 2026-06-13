@@ -46,7 +46,7 @@ export function AppToast({ message, onClose, tone }: AppToastProps) {
         className={cn(
           'relative overflow-hidden rounded-lg border p-3 shadow-[0_24px_80px_rgb(0_0_0_/_0.42)] backdrop-blur',
           tone === 'success' &&
-            'border-emerald-500/35 bg-[linear-gradient(135deg,rgb(6_78_59_/_0.28),hsl(var(--card))_55%)]',
+            'toast-success border-emerald-500/35 bg-[linear-gradient(135deg,rgb(6_78_59_/_0.28),hsl(var(--card))_55%)]',
           tone === 'error' &&
             'border-red-500/40 bg-[linear-gradient(135deg,rgb(127_29_29_/_0.34),hsl(var(--card))_55%)]',
           tone === 'info' &&

@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import './App.css'
 import {
   Play,
@@ -21,6 +21,7 @@ import { cn } from './lib/utils'
 
 function App() {
   const videoRef = useRef<HTMLVideoElement>(null)
+  const [isVideoLeaving, setIsVideoLeaving] = useState(false)
   const {
     cancelCompression,
     clipEnd,
@@ -81,6 +82,16 @@ function App() {
     }
   }
 
+  const handleClearVideo = () => {
+    if (isCompressing || isVideoLeaving) return
+
+    setIsVideoLeaving(true)
+    window.setTimeout(() => {
+      clearVideo()
+      setIsVideoLeaving(false)
+    }, 220)
+  }
+
   const handleCompressButtonClick = () => {
     if (isCompressing) {
       void cancelCompression()
@@ -107,18 +118,27 @@ function App() {
               : 'grid min-h-0 flex-1 gap-3'
           }
         >
-          <div className={videoInfo ? 'app-panel-enter flex min-h-0 min-w-0 flex-col gap-3' : 'app-panel-enter mx-auto flex min-h-0 w-full max-w-3xl flex-col justify-center gap-3'}>
+          <div
+            className={
+              videoInfo
+                ? cn(
+                    'app-panel-enter flex min-h-0 min-w-0 flex-col gap-3',
+                    isVideoLeaving && 'app-panel-exit',
+                  )
+                : 'app-panel-enter mx-auto flex min-h-0 w-full max-w-3xl flex-col justify-center gap-3'
+            }
+          >
             {videoInfo ? (
               <VideoPreview
                 clipEnd={clipEnd}
                 clipStart={clipStart}
                 currentTime={player.currentTime}
                 duration={player.duration || videoInfo.duration}
-                isClearDisabled={isCompressing}
+                isClearDisabled={isCompressing || isVideoLeaving}
                 isPlaying={player.isPlaying}
                 onClipEndChange={setClipEnd}
                 onClipStartChange={setClipStart}
-                onClearVideo={clearVideo}
+                onClearVideo={handleClearVideo}
                 onPreviewError={showPreviewError}
                 onResetTrim={resetTrim}
                 onTogglePlayback={player.togglePlayback}
@@ -136,7 +156,12 @@ function App() {
           </div>
 
           {videoInfo && (
-            <aside className="app-panel-enter app-panel-enter-delay flex min-h-0 flex-col gap-3 overflow-hidden">
+            <aside
+              className={cn(
+                'app-panel-enter app-panel-enter-delay flex min-h-0 flex-col gap-3 overflow-hidden',
+                isVideoLeaving && 'app-panel-exit',
+              )}
+            >
               <section
                 className={cn(
                   'relative overflow-hidden rounded-lg border border-border/80 bg-card/85 p-4 shadow-soft backdrop-blur transition-colors',
@@ -188,7 +213,10 @@ function App() {
                       : 'Compress'}
                   </Button>
 
-                  <CompressionProgress progress={progress} />
+                  <CompressionProgress
+                    isComplete={Boolean(compressionResult)}
+                    progress={progress}
+                  />
                 </div>
               </section>
 
