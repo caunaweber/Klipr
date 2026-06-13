@@ -41,8 +41,8 @@ export function VideoPreview({
   videoRef,
 }: VideoPreviewProps) {
   return (
-    <section className="relative z-10 flex min-h-0 flex-1 flex-col overflow-visible rounded-lg border border-border bg-card shadow-soft">
-      <div className="flex flex-col gap-2 border-b border-border bg-card/95 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+    <section className="relative z-10 flex min-h-0 flex-1 flex-col overflow-visible rounded-lg border border-border/80 bg-card/85 shadow-soft backdrop-blur">
+      <div className="flex flex-col gap-2 border-b border-border/80 bg-card/80 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
         <div className="min-w-0">
           <h2 className="truncate text-sm font-semibold text-foreground">
             {videoInfo.fileName}

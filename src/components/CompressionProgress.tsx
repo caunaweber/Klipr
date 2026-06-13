@@ -3,17 +3,39 @@ interface CompressionProgressProps {
 }
 
 export function CompressionProgress({ progress }: CompressionProgressProps) {
+  const normalizedProgress = Math.min(
+    100,
+    Math.max(0, Math.round(progress)),
+  )
+  const progressLabel =
+    normalizedProgress >= 100
+      ? 'Finalizing'
+      : normalizedProgress > 0
+        ? 'Compressing'
+        : 'Ready'
+
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>Progress</span>
-        <span>{Math.round(progress)}%</span>
+    <div className="flex flex-col gap-2 rounded-md border border-border/70 bg-background/45 p-3">
+      <div className="flex items-center justify-between gap-3 text-xs">
+        <span className="font-medium text-foreground">{progressLabel}</span>
+        <span className="rounded-full border border-border/80 bg-card/80 px-2 py-0.5 font-medium tabular-nums text-muted-foreground">
+          {normalizedProgress}%
+        </span>
       </div>
-      <progress
-        className="h-2 w-full overflow-hidden rounded-full bg-muted [&::-moz-progress-bar]:bg-primary [&::-webkit-progress-bar]:bg-muted [&::-webkit-progress-value]:bg-primary"
-        value={progress}
-        max={100}
-      />
+      <div
+        aria-label="Compression progress"
+        aria-valuemax={100}
+        aria-valuemin={0}
+        aria-valuenow={normalizedProgress}
+        className="relative h-2.5 overflow-hidden rounded-full border border-border/70 bg-muted/70"
+        role="progressbar"
+      >
+        <div
+          className="h-full rounded-full bg-[linear-gradient(90deg,hsl(var(--primary))_0%,#7c3aed_55%,#2563eb_100%)] shadow-[0_0_18px_rgb(124_58_237_/_0.45)] transition-[width] duration-300 ease-out"
+          style={{ width: `${normalizedProgress}%` }}
+        />
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgb(255_255_255_/_0.18),transparent_55%)]" />
+      </div>
     </div>
   )
 }

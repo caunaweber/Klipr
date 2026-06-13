@@ -4,23 +4,23 @@
 
 @layer base {
   :root {
-    --background: 199 49% 6%;
-    --foreground: 190 30% 94%;
-    --card: 198 38% 10%;
-    --card-foreground: 190 30% 94%;
-    --primary: 174 70% 45%;
+    --background: 240 33% 3%;
+    --foreground: 224 36% 96%;
+    --card: 244 36% 8%;
+    --card-foreground: 224 36% 96%;
+    --primary: 252 95% 70%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 199 32% 16%;
-    --secondary-foreground: 190 30% 94%;
-    --muted: 198 25% 18%;
-    --muted-foreground: 191 14% 70%;
-    --accent: 183 42% 18%;
-    --accent-foreground: 180 58% 78%;
+    --secondary: 241 28% 15%;
+    --secondary-foreground: 226 33% 92%;
+    --muted: 244 20% 18%;
+    --muted-foreground: 229 17% 70%;
+    --accent: 263 54% 20%;
+    --accent-foreground: 240 100% 92%;
     --destructive: 0 67% 52%;
     --destructive-foreground: 0 0% 100%;
-    --border: 194 26% 22%;
-    --input: 194 26% 22%;
-    --ring: 174 70% 45%;
+    --border: 243 26% 23%;
+    --input: 243 26% 23%;
+    --ring: 252 95% 70%;
     --radius: 0.5rem;
 
     font-family:
@@ -46,6 +46,10 @@
 
   body {
     @apply min-w-80 bg-background text-foreground;
+    background:
+      radial-gradient(circle at 12% -8%, rgb(79 70 229 / 0.22), transparent 30rem),
+      radial-gradient(circle at 84% 10%, rgb(88 28 135 / 0.24), transparent 28rem),
+      linear-gradient(135deg, #020204 0%, #070611 44%, #030207 100%);
   }
 
   button,

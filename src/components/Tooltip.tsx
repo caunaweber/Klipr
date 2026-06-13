@@ -113,8 +113,6 @@ export function Tooltip({
         fullWidth && 'w-full',
         className,
       )}
-      onBlur={hideTooltip}
-      onFocus={showTooltip}
       onMouseEnter={showTooltip}
       onMouseLeave={hideTooltip}
     >
