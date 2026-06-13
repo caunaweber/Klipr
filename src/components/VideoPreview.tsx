@@ -41,8 +41,8 @@ export function VideoPreview({
   videoRef,
 }: VideoPreviewProps) {
   return (
-    <section className="relative z-10 flex min-h-0 flex-1 flex-col overflow-visible rounded-lg border border-border/80 bg-card/85 shadow-soft backdrop-blur">
-      <div className="flex flex-col gap-2 border-b border-border/80 bg-card/80 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+    <section className="relative z-10 flex min-h-0 flex-1 flex-col overflow-visible rounded-lg border border-border/80 bg-card/85 shadow-soft shadow-black/40 backdrop-blur before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:z-10 before:h-px before:bg-white/12">
+      <div className="relative z-10 flex flex-col gap-2 border-b border-border/80 bg-card/70 px-3 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:px-4">
         <div className="min-w-0">
           <h2 className="truncate text-sm font-semibold text-foreground">
             {videoInfo.fileName}
@@ -82,13 +82,16 @@ export function VideoPreview({
           </span>
         </Tooltip>
       </div>
-      <video
-        className="min-h-0 flex-1 bg-black object-contain"
-        preload="auto"
-        ref={videoRef}
-        src={videoInfo.videoUrl}
-        onError={onPreviewError}
-      />
+      <div className="relative min-h-0 flex-1 overflow-hidden bg-black shadow-[inset_0_0_0_1px_rgb(255_255_255_/_0.04),inset_0_18px_60px_rgb(0_0_0_/_0.38)]">
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-16 bg-[linear-gradient(180deg,rgb(255_255_255_/_0.06),transparent)]" />
+        <video
+          className="h-full w-full bg-black object-contain"
+          preload="auto"
+          ref={videoRef}
+          src={videoInfo.videoUrl}
+          onError={onPreviewError}
+        />
+      </div>
       <PlayerControls
         currentTime={currentTime}
         duration={duration}

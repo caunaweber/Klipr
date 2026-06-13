@@ -17,6 +17,7 @@ import { VideoPreview } from './components/VideoPreview'
 import { Button } from './components/ui/button'
 import { useVideoCompression } from './hooks/useVideoCompression'
 import { useVideoPlayer } from './hooks/useVideoPlayer'
+import { cn } from './lib/utils'
 
 function App() {
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -155,7 +156,12 @@ function App() {
                   />
 
                   <Button
-                    className="w-full"
+                    className={cn(
+                      'compress-action-button group w-full overflow-hidden',
+                      isCompressing
+                        ? 'border-primary/50 bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
+                        : 'bg-[linear-gradient(135deg,hsl(var(--primary))_0%,#7c3aed_52%,#2563eb_100%)] shadow-glow hover:shadow-[0_0_42px_rgb(124_58_237_/_0.34)]',
+                    )}
                     disabled={isCompressDisabled || isCancelling}
                     onClick={handleCompressButtonClick}
                     variant={isCompressing ? 'outline' : 'default'}

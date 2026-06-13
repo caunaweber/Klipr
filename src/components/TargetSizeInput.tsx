@@ -81,19 +81,19 @@ export function TargetSizeInput({
       >
         Target size (MB)
       </label>
-      <div className="grid grid-cols-5 gap-2">
+      <div className="grid grid-cols-5 gap-1 rounded-md border border-border/80 bg-background/45 p-1">
         {TARGET_SIZE_PRESETS.map((preset) => {
           const isSelected = value === preset
           const isPresetInvalid = getPresetIsInvalid(preset)
           const button = (
             <button
               className={cn(
-                'h-9 w-full rounded-md border px-2 text-sm font-medium transition-colors',
+                'h-8 w-full rounded-sm border border-transparent px-2 text-sm font-medium transition-all',
                 isSelected
-                  ? 'border-primary bg-primary text-primary-foreground shadow-glow'
-                  : 'border-input bg-background/70 text-muted-foreground hover:bg-accent/80 hover:text-accent-foreground',
+                  ? 'border-primary/70 bg-primary text-primary-foreground shadow-glow'
+                  : 'text-muted-foreground hover:bg-accent/70 hover:text-accent-foreground',
                 isPresetInvalid &&
-                  'border-destructive/70 text-destructive-foreground',
+                  'border-destructive/70 text-destructive-foreground hover:bg-destructive/10',
               )}
               onClick={() => onValueChange(preset)}
               type="button"

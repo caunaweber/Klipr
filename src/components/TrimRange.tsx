@@ -30,7 +30,7 @@ export function TrimRange({
   const endPercent = (clipEnd / duration) * 100
 
   return (
-    <div className="border-t border-border/80 bg-card/80 px-3 pb-4 pt-3 sm:px-4">
+    <div className="border-t border-border/80 bg-card/55 px-3 pb-4 pt-3 backdrop-blur sm:px-4">
       <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold">Trim</h3>

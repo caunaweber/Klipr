@@ -83,9 +83,38 @@
   animation-delay: 70ms;
 }
 
+.compress-action-button:not(:disabled):hover svg {
+  animation: compress-action-icon 700ms ease-in-out;
+}
+
+.progress-shimmer::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: linear-gradient(
+    110deg,
+    transparent 0%,
+    rgb(255 255 255 / 0.24) 42%,
+    transparent 68%
+  );
+  transform: translateX(-100%);
+  animation: progress-shimmer 1.7s ease-in-out infinite;
+}
+
 .group:hover .dropzone-upload-icon,
 .group:focus-visible .dropzone-upload-icon {
   animation: dropzone-upload-float 1.6s ease-in-out infinite;
+}
+
+@keyframes compress-action-icon {
+  0%,
+  100% {
+    transform: translateX(0) scale(1);
+  }
+
+  45% {
+    transform: translateX(0.125rem) scale(1.08);
+  }
 }
 
 @keyframes app-panel-enter {
@@ -97,6 +126,16 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes progress-shimmer {
+  from {
+    transform: translateX(-100%);
+  }
+
+  to {
+    transform: translateX(140%);
   }
 }
 

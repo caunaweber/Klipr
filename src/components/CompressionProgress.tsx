@@ -1,3 +1,5 @@
+import { cn } from '../lib/utils'
+
 interface CompressionProgressProps {
   progress: number
 }
@@ -13,6 +15,7 @@ export function CompressionProgress({ progress }: CompressionProgressProps) {
       : normalizedProgress > 0
         ? 'Compressing'
         : 'Ready'
+  const isActive = normalizedProgress > 0 && normalizedProgress < 100
 
   return (
     <div className="flex flex-col gap-2 rounded-md border border-border/70 bg-background/45 p-3">
@@ -31,7 +34,10 @@ export function CompressionProgress({ progress }: CompressionProgressProps) {
         role="progressbar"
       >
         <div
-          className="h-full rounded-full bg-[linear-gradient(90deg,hsl(var(--primary))_0%,#7c3aed_55%,#2563eb_100%)] shadow-[0_0_18px_rgb(124_58_237_/_0.45)] transition-[width] duration-300 ease-out"
+          className={cn(
+            'relative h-full overflow-hidden rounded-full bg-[linear-gradient(90deg,hsl(var(--primary))_0%,#7c3aed_55%,#2563eb_100%)] shadow-[0_0_18px_rgb(124_58_237_/_0.45)] transition-[width] duration-300 ease-out',
+            isActive && 'progress-shimmer',
+          )}
           style={{ width: `${normalizedProgress}%` }}
         />
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgb(255_255_255_/_0.18),transparent_55%)]" />
