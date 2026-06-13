@@ -43,4 +43,7 @@ contextBridge.exposeInMainWorld('windowControls', {
   
   close: () =>
     ipcRenderer.invoke('window:close'),
+
+  openRepository: () =>
+    ipcRenderer.invoke('window:open-repository'),
 })

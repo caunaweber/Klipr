@@ -45,6 +45,7 @@ interface Window {
   windowControls: {
     minimize: () => Promise<void>
     close: () => Promise<void>
+    openRepository: () => Promise<void>
   }
 
 }

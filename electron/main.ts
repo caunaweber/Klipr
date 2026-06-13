@@ -300,6 +300,10 @@ ipcMain.handle('window:close', (event) => {
   BrowserWindow.fromWebContents(event.sender)?.close()
 })
 
+ipcMain.handle('window:open-repository', () => {
+  void shell.openExternal('https://github.com/caunaweber/Klipr')
+})
+
 app.whenReady().then(() => {
 
   protocol.handle(
