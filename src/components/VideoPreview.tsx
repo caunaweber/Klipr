@@ -49,7 +49,7 @@ export function VideoPreview({
   volume,
 }: VideoPreviewProps) {
   return (
-    <section className="video-preview-shell relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border/80 bg-[linear-gradient(180deg,hsl(var(--card))_0%,rgb(3_2_7_/_0.94)_100%)] p-1 shadow-[0_28px_90px_rgb(0_0_0_/_0.48)] backdrop-blur transition-all duration-300 hover:border-primary/35 hover:shadow-[0_32px_100px_rgb(0_0_0_/_0.56),0_0_42px_rgb(124_58_237_/_0.12)]">
+    <section className="video-preview-shell relative z-10 flex min-h-[32rem] flex-col overflow-hidden rounded-lg border border-border/80 bg-[linear-gradient(180deg,hsl(var(--card))_0%,rgb(3_2_7_/_0.94)_100%)] p-1 shadow-[0_28px_90px_rgb(0_0_0_/_0.48)] backdrop-blur transition-all duration-300 hover:border-primary/35 hover:shadow-[0_32px_100px_rgb(0_0_0_/_0.56),0_0_42px_rgb(124_58_237_/_0.12)] lg:min-h-0 lg:flex-1">
       <div className="relative z-10 flex flex-col gap-2 rounded-t-md border border-border/70 bg-background/50 px-3 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:px-4">
         <div className="min-w-0">
           <h2 className="truncate text-sm font-semibold text-foreground">

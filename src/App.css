@@ -135,6 +135,35 @@
   -webkit-app-region: no-drag;
 }
 
+.app-scrollbar {
+  scrollbar-color: rgb(139 92 246 / 0.52) rgb(3 2 7 / 0.36);
+  scrollbar-width: thin;
+}
+
+.app-scrollbar::-webkit-scrollbar {
+  width: 0.625rem;
+}
+
+.app-scrollbar::-webkit-scrollbar-track {
+  background: rgb(3 2 7 / 0.36);
+}
+
+.app-scrollbar::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgb(139 92 246 / 0.68), rgb(37 99 235 / 0.58))
+    border-box;
+  background-clip: padding-box;
+}
+
+.app-scrollbar::-webkit-scrollbar-thumb:hover {
+  background:
+    linear-gradient(180deg, rgb(167 139 250 / 0.82), rgb(59 130 246 / 0.72))
+    border-box;
+  background-clip: padding-box;
+}
+
 .toast-progress {
   animation-name: toast-progress;
   animation-timing-function: linear;

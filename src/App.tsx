@@ -110,23 +110,23 @@ function App() {
         onClose={dismissMessage}
         tone={messageTone}
       />
-      <main className="box-border h-[calc(100vh-2.25rem)] overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(79,70,229,0.24),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(88,28,135,0.22),transparent_34%),linear-gradient(135deg,#020204_0%,#070611_46%,#030207_100%)] px-4 py-3 text-foreground sm:px-5 lg:px-6">
-      <div className="mx-auto flex h-full w-full max-w-6xl flex-col gap-3 overflow-hidden">
+      <main className="app-scrollbar box-border h-[calc(100vh-2.25rem)] overflow-x-hidden overflow-y-auto bg-[radial-gradient(circle_at_top_left,rgba(79,70,229,0.24),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(88,28,135,0.22),transparent_34%),linear-gradient(135deg,#020204_0%,#070611_46%,#030207_100%)] px-4 py-3 text-foreground lg:overflow-hidden sm:px-5 lg:px-6">
+      <div className="mx-auto flex min-h-full w-full max-w-6xl flex-col gap-3 lg:h-full lg:overflow-hidden">
         <section
           className={
             videoInfo
-              ? 'grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_320px]'
-              : 'grid min-h-0 flex-1 gap-3'
+              ? 'grid min-h-full gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_320px]'
+              : 'grid min-h-full justify-items-center gap-3 lg:min-h-0 lg:flex-1'
           }
         >
           <div
             className={
               videoInfo
                 ? cn(
-                    'app-panel-enter flex min-h-0 min-w-0 flex-col gap-3',
+                    'app-panel-enter flex min-w-0 flex-col gap-3 lg:min-h-0',
                     isVideoLeaving && 'app-panel-exit',
                   )
-                : 'app-panel-enter mx-auto flex min-h-0 w-full max-w-3xl flex-col justify-center gap-3'
+                : 'app-panel-enter flex min-h-[calc(100vh-4.75rem)] w-full max-w-3xl flex-col justify-center gap-3 lg:min-h-0'
             }
           >
             {videoInfo ? (
@@ -163,7 +163,7 @@ function App() {
           {videoInfo && (
             <aside
               className={cn(
-                'app-panel-enter app-panel-enter-delay flex min-h-0 flex-col gap-3 overflow-hidden',
+                'app-panel-enter app-panel-enter-delay flex flex-col gap-3 lg:min-h-0 lg:overflow-hidden',
                 isVideoLeaving && 'app-panel-exit',
               )}
             >
