@@ -13,6 +13,7 @@ dist-electron
 release
 dist-ssr
 *.local
+icon-concepts
 
 # Editor directories and files
 .vscode/*

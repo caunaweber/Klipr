@@ -83,6 +83,14 @@ export function useVideoCompression() {
     setMessage(null)
   }
 
+  const notify = async (body: string, title = 'Klipr') => {
+    try {
+      await window.videoCompressor.notify({ title, body })
+    } catch (error) {
+      console.error(error)
+    }
+  }
+
   const selectVideo = async () => {
     setIsSelectingVideo(true)
     setStatus('loading-video')
@@ -175,17 +183,30 @@ export function useVideoCompression() {
 
       setCompressionResult(result)
       setStatus('success')
-      setMessage('Compression complete. Your video is ready.')
+      setMessage(null)
+      void notify('Your compressed video is ready.', 'Compression complete')
+
     } catch (error) {
+
       console.error(error)
       setCompressionResult(null)
       setProgress(0)
-      setStatus(cancelRequestedRef.current ? 'cancelled' : 'error')
-      setMessage(
-        cancelRequestedRef.current
-          ? 'Compression cancelled.'
-          : getCompressionErrorMessage(error),
-      )
+
+      const wasCancelled = cancelRequestedRef.current
+      const errorMessage = wasCancelled
+
+        ? 'Compression cancelled.'
+        : getCompressionErrorMessage(error)
+
+      setStatus(wasCancelled ? 'cancelled' : 'error')
+
+      if (wasCancelled) {
+        setMessage(errorMessage)
+      } else {
+        setMessage(null)
+        void notify(errorMessage, 'Compression failed')
+      }
+
     } finally {
       setIsCompressing(false)
       setIsCancelling(false)

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, shell, Notification } from 'electron'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import { selectVideo, selectDroppedVideo, compressVideo } from './services/video.services'
@@ -202,6 +202,7 @@ function createWindow() {
     autoHideMenuBar: true,
     frame: false,
     backgroundColor: '#061116',
+    icon: path.join(process.env.APP_ROOT, 'build/icon.ico'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
     },
@@ -303,6 +304,31 @@ ipcMain.handle('window:close', (event) => {
 ipcMain.handle('window:open-repository', () => {
   void shell.openExternal('https://github.com/caunaweber/Klipr')
 })
+
+ipcMain.handle('show-notification', (_, options: { title: string; body: string }) => {
+  if (!Notification.isSupported()) {
+    return false
+  }
+
+  const notification = new Notification({
+    title: options.title,
+    body: options.body,
+  })
+
+  notification.on('click', () => {
+    if (win && !win.isDestroyed()) {
+      win.show()
+      win.focus()
+    }
+  })
+
+  notification.show()
+  return true
+})
+
+if (process.platform === 'win32') {
+  app.setAppUserModelId('com.caunaweber.klipr')
+}
 
 app.whenReady().then(() => {
 

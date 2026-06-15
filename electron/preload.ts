@@ -35,12 +35,15 @@ contextBridge.exposeInMainWorld('videoCompressor', {
     }
   },
 
+  notify: (options: { title: string; body: string }) =>
+    ipcRenderer.invoke('show-notification', options),
+
 })
 
 contextBridge.exposeInMainWorld('windowControls', {
   minimize: () =>
     ipcRenderer.invoke('window:minimize'),
-  
+
   close: () =>
     ipcRenderer.invoke('window:close'),
 

@@ -40,6 +40,8 @@ interface Window {
 
     openResultFolder: (outputId: string) => Promise<void>
 
+    notify: (options: { title: string; body: string }) => Promise<boolean>
+
   }
 
   windowControls: {
