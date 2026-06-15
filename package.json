@@ -1,7 +1,7 @@
 {
   "name": "klipr",
   "private": true,
-  "version": "1.0.0-beta.3",
+  "version": "1.0.0",
   "description": "Desktop app for trimming and compressing video clips for sharing.",
   "author": "caunaweber",
   "type": "module",
