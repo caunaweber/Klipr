@@ -9,6 +9,7 @@ import { resolvePackagedBinaryPath } from '../../utils/binary-path.utils'
 const require = createRequire(import.meta.url)
 const ffmpeg = require('ffmpeg-static')
 const ffmpegPath = resolvePackagedBinaryPath(ffmpeg)
+const SEEK_PREROLL_SECONDS = 2
 
 export async function trimVideo(options: TrimOptions): Promise<string> {
 
@@ -27,6 +28,14 @@ export async function trimVideo(options: TrimOptions): Promise<string> {
 
     const outputPath = buildTrimOutputPath(filePath, startTime, endTime)
 
+    const preSeekTime =
+        Math.max(
+            0,
+            startTime - SEEK_PREROLL_SECONDS
+        )
+    const fineSeekTime =
+        startTime - preSeekTime
+
     return new Promise((resolve, reject) => {
 
         const ffmpegProcess = spawn(
@@ -34,11 +43,14 @@ export async function trimVideo(options: TrimOptions): Promise<string> {
             [
                 '-y',
 
+                '-ss',
+                String(preSeekTime),
+
                 '-i',
                 filePath,
 
                 '-ss',
-                String(startTime),
+                String(fineSeekTime),
 
                 '-t',
                 String(clipDuration),
