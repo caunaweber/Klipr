@@ -79,10 +79,8 @@ function App() {
     !videoInfo ||
     isTrimRangeInvalid ||
     (isVideoOperationActive && !isTrimming)
-  const progressOperation =
-    status === 'trimming' || exportKind === 'trim'
-      ? 'trim'
-      : 'compression'
+  const hasCompressionResult =
+    exportKind === 'compression' && Boolean(exportResult)
   const messageTone =
     status === 'success'
       ? 'success'
@@ -264,8 +262,7 @@ function App() {
                   </div>
 
                   <ExportProgress
-                    isComplete={Boolean(exportResult)}
-                    operation={progressOperation}
+                    isComplete={hasCompressionResult}
                     progress={progress}
                   />
                 </div>

@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module'
 import { spawn } from 'child_process'
 import type { TrimOptions } from '../../types/trim'
-import { attachProgressListener, captureStderr } from '../../utils/ffmpeg.utils'
+import { captureStderr } from '../../utils/ffmpeg.utils'
 import { buildTrimOutputPath, removeFileIfExists } from '../../utils/file.utils'
 import { createFfmpegCancelledError, registerFfmpegProcess } from '../../utils/process-registry.utils'
 import { resolvePackagedBinaryPath } from '../../utils/binary-path.utils'
@@ -15,8 +15,7 @@ export async function trimVideo(options: TrimOptions): Promise<string> {
     const {
         filePath,
         startTime,
-        endTime,
-        onProgress
+        endTime
     } = options
 
     const clipDuration = endTime - startTime
@@ -48,9 +47,6 @@ export async function trimVideo(options: TrimOptions): Promise<string> {
 
                 '-avoid_negative_ts',
                 'make_zero',
-
-                '-progress',
-                'pipe:1',
 
                 '-movflags',
                 '+faststart',
@@ -87,14 +83,6 @@ export async function trimVideo(options: TrimOptions): Promise<string> {
         const getStderr =
             captureStderr(ffmpegProcess)
 
-        attachProgressListener(
-            ffmpegProcess,
-            clipDuration,
-            onProgress,
-            0,
-            100
-        )
-
         ffmpegProcess.on('close', async (code, signal) => {
 
             if (finished) return
@@ -111,8 +99,6 @@ export async function trimVideo(options: TrimOptions): Promise<string> {
                 console.log(
                     'Trim finished'
                 )
-
-                onProgress(100)
 
                 resolve(outputPath)
 

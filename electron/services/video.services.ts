@@ -207,8 +207,7 @@ export async function compressVideo(
 }
 
 export async function trimSelectedVideo(
-  request: TrimRequest,
-  onProgress: (progress: number) => void
+  request: TrimRequest
 ): Promise<TrimResult> {
   const filePath = getSelectedVideoPath(request.videoId)
 
@@ -228,7 +227,6 @@ export async function trimSelectedVideo(
     filePath,
     startTime: request.startTime,
     endTime: request.endTime,
-    onProgress,
   })
 
   return {

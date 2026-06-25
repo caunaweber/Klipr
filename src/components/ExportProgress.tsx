@@ -1,34 +1,25 @@
 import { cn } from '../lib/utils'
 
-type ExportProgressOperation =
-  | 'compression'
-  | 'trim'
-
 interface ExportProgressProps {
   isComplete?: boolean
-  operation: ExportProgressOperation
   progress: number
 }
 
 export function ExportProgress({
   isComplete = false,
-  operation,
   progress,
 }: ExportProgressProps) {
   const normalizedProgress = Math.min(
     100,
     Math.max(0, Math.round(progress)),
   )
-  const activeLabel = operation === 'trim'
-    ? 'Exporting'
-    : 'Compressing'
   const progressLabel =
     isComplete
       ? 'Complete'
       : normalizedProgress >= 100
       ? 'Finalizing'
       : normalizedProgress > 0
-        ? activeLabel
+        ? 'Compressing'
         : 'Ready'
   const isActive = normalizedProgress > 0 && normalizedProgress < 100
 

@@ -289,17 +289,7 @@ ipcMain.handle('trim-video', async (_, request: TrimRequest) => {
   isVideoOperationActive = true
 
   try {
-    return await trimSelectedVideo(
-      request,
-      (progress) => {
-        if (win && !win.isDestroyed()) {
-          win.webContents.send(
-            'video-operation-progress',
-            progress
-          )
-        }
-      }
-    )
+    return await trimSelectedVideo(request)
   } catch (error) {
     console.error(error)
     throw error

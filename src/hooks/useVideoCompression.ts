@@ -286,7 +286,6 @@ export function useVideoCompression() {
     setMessage(null)
 
     try {
-      setProgress(0)
       setExportResult(null)
       setExportKind(null)
 
@@ -307,7 +306,6 @@ export function useVideoCompression() {
       console.error(error)
       setExportResult(null)
       setExportKind(null)
-      setProgress(0)
 
       const wasCancelled = cancelRequestedRef.current
       const errorMessage = wasCancelled

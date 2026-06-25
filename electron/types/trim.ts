@@ -8,7 +8,6 @@ export interface TrimOptions {
   filePath: string
   startTime: number
   endTime: number
-  onProgress: (progress: number) => void
 }
 
 export interface TrimResult {
