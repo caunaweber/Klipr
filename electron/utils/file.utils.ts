@@ -9,8 +9,7 @@ export function buildOutputPath(
   useTwoPass: boolean
 ): string {
 
-  const parsedFile =
-    path.parse(filePath)
+  const parsedFile = path.parse(filePath)
 
   const passMode =
     useTwoPass
@@ -31,6 +30,32 @@ export function buildOutputPath(
     parsedFile.dir,
     `${parsedFile.name}-${codecName}-${passMode}-${sizeLabel}MB-compressed.mp4`
   )
+}
+
+export function buildTrimOutputPath(
+  filePath: string,
+  startTime: number,
+  endTime: number
+): string {
+  const parsedFile = path.parse(filePath)
+
+  const startLabel = formatTimeForFileName(startTime)
+  const endLabel = formatTimeForFileName(endTime)
+
+  return path.join(
+    parsedFile.dir,
+    `${parsedFile.name}-trim-${startLabel}-${endLabel}.mp4`
+  )
+}
+
+function formatTimeForFileName(seconds: number) {
+  const totalSeconds = Math.floor(seconds)
+  const minutes = Math.floor(totalSeconds / 60)
+  const remainingSeconds = totalSeconds % 60
+
+  return `${minutes.toString().padStart(2, '0')}_${remainingSeconds
+    .toString()
+    .padStart(2, '0')}`
 }
 
 export async function removeFileIfExists(filePath: string) {

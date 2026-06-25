@@ -12,6 +12,9 @@ import { validateCompressionParameters } from '../utils/compression-validation.u
 import { getSelectedVideoPath, registerSelectedVideo } from '../utils/selected-video-registry.utils'
 import { registerGeneratedOutput } from '../utils/generated-output-registry.utils'
 import { resolvePackagedBinaryPath } from '../utils/binary-path.utils'
+import { TrimRequest, TrimResult } from '../types/trim'
+import { validateTrimParameters } from '../utils/trim-validation.utils'
+import { trimVideo } from './trim/trim.services'
 
 const execFileAsync = promisify(execFile)
 
@@ -200,5 +203,36 @@ export async function compressVideo(
   return {
     outputId: registerGeneratedOutput(outputPath),
     outputPath
+  }
+}
+
+export async function trimSelectedVideo(
+  request: TrimRequest,
+  onProgress: (progress: number) => void
+): Promise<TrimResult> {
+  const filePath = getSelectedVideoPath(request.videoId)
+
+  if (!filePath) {
+    throw new Error('Video not authorized')
+  }
+
+  const videoInfo = await getVideoInfo(filePath, request.videoId)
+
+  validateTrimParameters({
+    duration: videoInfo.duration,
+    startTime: request.startTime,
+    endTime: request.endTime,
+  })
+
+  const outputPath = await trimVideo({
+    filePath,
+    startTime: request.startTime,
+    endTime: request.endTime,
+    onProgress,
+  })
+
+  return {
+    outputId: registerGeneratedOutput(outputPath),
+    outputPath,
   }
 }

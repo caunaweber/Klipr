@@ -1,10 +1,8 @@
-import { CompressionOptions } from '../../types/compression'
 import { createRequire } from 'node:module'
 import { spawn } from 'child_process'
-import { calculateVideoBitrate } from '../../utils/bitrate.utils'
+import type { TrimOptions } from '../../types/trim'
 import { attachProgressListener, captureStderr } from '../../utils/ffmpeg.utils'
-import { calculateResolution } from '../../utils/resolution.utils'
-import { buildOutputPath, removeFileIfExists } from '../../utils/file.utils'
+import { buildTrimOutputPath, removeFileIfExists } from '../../utils/file.utils'
 import { createFfmpegCancelledError, registerFfmpegProcess } from '../../utils/process-registry.utils'
 import { resolvePackagedBinaryPath } from '../../utils/binary-path.utils'
 
@@ -12,47 +10,22 @@ const require = createRequire(import.meta.url)
 const ffmpeg = require('ffmpeg-static')
 const ffmpegPath = resolvePackagedBinaryPath(ffmpeg)
 
-export async function onePassCompression(options: CompressionOptions): Promise<string> {
+export async function trimVideo(options: TrimOptions): Promise<string> {
 
     const {
         filePath,
-        targetSizeMB,
-        duration,
-        onProgress,
-        width,
-        height,
-        codec,
         startTime,
-        endTime
+        endTime,
+        onProgress
     } = options
 
-    const start = startTime ?? 0
-    const end = endTime ?? duration
-
-    const clipDuration = end - start
+    const clipDuration = endTime - startTime
 
     if (clipDuration <= 0) {
         throw new Error('Invalid clip duration')
     }
 
-    const isTrimmed =
-        start > 0 || end < duration
-
-    const seekArgs = start > 0
-        ? ['-ss', String(start)]
-        : []
-
-    const durationArgs = isTrimmed
-        ? ['-t', String(clipDuration)]
-        : []
-
-    const { bitrateKbps, audioBitrateKbps } = calculateVideoBitrate(targetSizeMB, clipDuration)
-
-    const resolution = calculateResolution(width, height, bitrateKbps)
-
-    const outputPath = buildOutputPath(filePath, codec, targetSizeMB, false)
-
-    const encoder = codec === 'h265' ? 'libx265' : 'libx264'
+    const outputPath = buildTrimOutputPath(filePath, startTime, endTime)
 
     return new Promise((resolve, reject) => {
 
@@ -61,30 +34,17 @@ export async function onePassCompression(options: CompressionOptions): Promise<s
             [
                 '-y',
 
-                ...seekArgs,
+                '-ss',
+                String(startTime),
 
                 '-i',
                 filePath,
 
-                ...durationArgs,
+                '-t',
+                String(clipDuration),
 
-                '-preset',
-                'slow',
-
-                '-b:v',
-                `${bitrateKbps}k`,
-
-                '-c:v',
-                encoder,
-
-                '-c:a',
-                'aac',
-
-                '-b:a',
-                `${audioBitrateKbps}k`,
-
-                '-vf',
-                `scale=${resolution.width}:${resolution.height}`,
+                '-c',
+                'copy',
 
                 '-progress',
                 'pipe:1',
@@ -96,7 +56,7 @@ export async function onePassCompression(options: CompressionOptions): Promise<s
         const ffmpegControl =
             registerFfmpegProcess(ffmpegProcess)
 
-        console.log('FFmpeg process created')
+        console.log('FFmpeg trim process created')
 
         let finished = false
 
@@ -110,7 +70,7 @@ export async function onePassCompression(options: CompressionOptions): Promise<s
                 ffmpegControl.unregister()
 
                 console.error(
-                    'FFmpeg process error:',
+                    'FFmpeg trim process error:',
                     error
                 )
 
@@ -137,13 +97,13 @@ export async function onePassCompression(options: CompressionOptions): Promise<s
             ffmpegControl.unregister()
 
             console.log(
-                `FFmpeg closed with code ${code}`
+                `FFmpeg trim closed with code ${code}`
             )
 
             if (code === 0 && !signal && !ffmpegControl.isCancelled()) {
 
                 console.log(
-                    'Compression finished'
+                    'Trim finished'
                 )
 
                 onProgress(100)
@@ -155,20 +115,20 @@ export async function onePassCompression(options: CompressionOptions): Promise<s
                     ffmpegControl.isCancelled() ||
                     signal !== null
 
+                await removeFileIfExists(outputPath)
+
                 if (wasCancelled) {
-                    await removeFileIfExists(outputPath)
                     reject(createFfmpegCancelledError())
                     return
                 }
 
-                await removeFileIfExists(outputPath)
-
                 reject(
                     new Error(
-                        `FFmpeg exited with code ${code}\n${getStderr()}`
+                        `FFmpeg trim exited with code ${code}\n${getStderr()}`
                     )
                 )
             }
         })
     })
+
 }

@@ -106,8 +106,8 @@ async function terminateFfmpegProcess(
   ])
 }
 
-export function createCompressionCancelledError() {
-  const error = new Error('Compression cancelled')
+export function createFfmpegCancelledError() {
+  const error = new Error('FFmpeg operation cancelled')
   error.name = 'AbortError'
   return error
 }

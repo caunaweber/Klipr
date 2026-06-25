@@ -7,7 +7,7 @@ import { calculateVideoBitrate } from '../../utils/bitrate.utils'
 import { attachProgressListener, captureStderr } from '../../utils/ffmpeg.utils'
 import { calculateResolution } from '../../utils/resolution.utils'
 import { buildOutputPath, removeFileIfExists } from '../../utils/file.utils'
-import { createCompressionCancelledError, registerFfmpegProcess } from '../../utils/process-registry.utils'
+import { createFfmpegCancelledError, registerFfmpegProcess } from '../../utils/process-registry.utils'
 import { resolvePackagedBinaryPath } from '../../utils/binary-path.utils'
 
 
@@ -167,7 +167,7 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
                     cleanupPassLogs(passLogFile)
 
                     if (wasCancelled) {
-                        reject(createCompressionCancelledError())
+                        reject(createFfmpegCancelledError())
                         return
                     }
 
@@ -296,7 +296,7 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
                 await removeFileIfExists(outputPath)
 
                 if (wasCancelled) {
-                    reject(createCompressionCancelledError())
+                    reject(createFfmpegCancelledError())
                     return
                 }
 
