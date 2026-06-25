@@ -36,11 +36,15 @@ interface Window {
 
     onProgress: (callback: (progress: number) => void) => () => void
 
-    cancelCompression: () => Promise<void>
+    cancelVideoOperation: () => Promise<void>
 
     openResultFolder: (outputId: string) => Promise<void>
 
     notify: (options: { title: string; body: string }) => Promise<boolean>
+
+    trimVideo: (
+      request: import('./types/trim').TrimRequest
+    ) => Promise<import('./types/trim').TrimResult>
 
   }
 

@@ -1,6 +1,7 @@
 import { ipcRenderer, contextBridge, webUtils } from 'electron'
 import { CompressionRequest, CompressionResult } from './types/compression'
 import { VideoInfo } from './types/video'
+import { TrimRequest, TrimResult } from './types/trim'
 
 
 contextBridge.exposeInMainWorld('videoCompressor', {
@@ -16,8 +17,8 @@ contextBridge.exposeInMainWorld('videoCompressor', {
   compressVideo: (request: CompressionRequest): Promise<CompressionResult> =>
     ipcRenderer.invoke('compress-video', request),
 
-  cancelCompression: () =>
-    ipcRenderer.invoke('cancel-compression'),
+  cancelVideoOperation: () =>
+    ipcRenderer.invoke('cancel-video-operation'),
 
   openResultFolder: (outputId: string) =>
     ipcRenderer.invoke('open-result-folder', outputId),
@@ -27,16 +28,19 @@ contextBridge.exposeInMainWorld('videoCompressor', {
       callback(progress)
     }
     ipcRenderer.on(
-      'compression-progress',
+      'video-operation-progress',
       listener
     )
     return () => {
-      ipcRenderer.removeListener('compression-progress', listener)
+      ipcRenderer.removeListener('video-operation-progress', listener)
     }
   },
 
   notify: (options: { title: string; body: string }) =>
     ipcRenderer.invoke('show-notification', options),
+
+  trimVideo: (request: TrimRequest): Promise<TrimResult> =>
+    ipcRenderer.invoke('trim-video', request),
 
 })
 

@@ -1,8 +1,9 @@
 import { app, BrowserWindow, ipcMain, shell, Notification } from 'electron'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
-import { selectVideo, selectDroppedVideo, compressVideo } from './services/video.services'
+import { selectVideo, selectDroppedVideo, compressVideo, trimSelectedVideo } from './services/video.services'
 import { CompressionRequest } from './types/compression'
+import { TrimRequest } from './types/trim'
 import { protocol } from 'electron'
 import fs from 'node:fs'
 import { terminateAllFfmpegProcesses } from './utils/process-registry.utils'
@@ -33,7 +34,7 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 
 
 let win: BrowserWindow | null
 let isShuttingDown = false
-let isCompressionActive = false
+let isVideoOperationActive = false
 
 interface ParsedRange {
   start: number
@@ -253,11 +254,11 @@ ipcMain.handle('select-dropped-video', async (_, filePath: unknown) =>
 
 ipcMain.handle('compress-video', async (_, request: CompressionRequest) => {
 
-  if (isCompressionActive) {
-    throw new Error('A compression is already active')
+  if (isVideoOperationActive) {
+    throw new Error('A video operation is already active')
   }
 
-  isCompressionActive = true
+  isVideoOperationActive = true
 
   try {
     return await compressVideo(
@@ -265,7 +266,7 @@ ipcMain.handle('compress-video', async (_, request: CompressionRequest) => {
       (progress) => {
         if (win && !win.isDestroyed()) {
           win.webContents.send(
-            'compression-progress',
+            'video-operation-progress',
             progress
           )
         }
@@ -275,11 +276,39 @@ ipcMain.handle('compress-video', async (_, request: CompressionRequest) => {
     console.error(error)
     throw error
   } finally {
-    isCompressionActive = false
+    isVideoOperationActive = false
   }
 })
 
-ipcMain.handle('cancel-compression', async () => {
+ipcMain.handle('trim-video', async (_, request: TrimRequest) => {
+
+  if (isVideoOperationActive) {
+    throw new Error('A video operation is already active')
+  }
+
+  isVideoOperationActive = true
+
+  try {
+    return await trimSelectedVideo(
+      request,
+      (progress) => {
+        if (win && !win.isDestroyed()) {
+          win.webContents.send(
+            'video-operation-progress',
+            progress
+          )
+        }
+      }
+    )
+  } catch (error) {
+    console.error(error)
+    throw error
+  } finally {
+    isVideoOperationActive = false
+  }
+})
+
+ipcMain.handle('cancel-video-operation', async () => {
   await terminateAllFfmpegProcesses()
 })
 
