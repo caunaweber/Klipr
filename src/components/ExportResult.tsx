@@ -1,13 +1,24 @@
 import { CheckCircle2, FolderOpen } from 'lucide-react'
 import { Button } from './ui/button'
 
-interface CompressionResultProps {
+type ExportResultKind =
+  | 'compression'
+  | 'trim'
+
+interface ExportResultProps {
+  kind: ExportResultKind
   onOpenFolder: () => void
 }
 
-export function CompressionResult({
+export function ExportResult({
+  kind,
   onOpenFolder,
-}: CompressionResultProps) {
+}: ExportResultProps) {
+  const title =
+    kind === 'trim'
+      ? 'Clip exported'
+      : 'Compression complete'
+
   return (
     <section className="compression-result-enter relative overflow-hidden rounded-lg border border-emerald-500/25 bg-[linear-gradient(135deg,rgb(6_78_59_/_0.16),hsl(var(--card))_58%)] p-4 shadow-soft backdrop-blur">
       <div className="relative z-10 flex items-center gap-2">
@@ -15,7 +26,7 @@ export function CompressionResult({
           <CheckCircle2 className="h-3.5 w-3.5" />
         </span>
         <h2 className="text-sm font-semibold text-foreground">
-          Compression complete
+          {title}
         </h2>
       </div>
       <Button

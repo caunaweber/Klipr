@@ -1,25 +1,34 @@
 import { cn } from '../lib/utils'
 
-interface CompressionProgressProps {
+type ExportProgressOperation =
+  | 'compression'
+  | 'trim'
+
+interface ExportProgressProps {
   isComplete?: boolean
+  operation: ExportProgressOperation
   progress: number
 }
 
-export function CompressionProgress({
+export function ExportProgress({
   isComplete = false,
+  operation,
   progress,
-}: CompressionProgressProps) {
+}: ExportProgressProps) {
   const normalizedProgress = Math.min(
     100,
     Math.max(0, Math.round(progress)),
   )
+  const activeLabel = operation === 'trim'
+    ? 'Exporting'
+    : 'Compressing'
   const progressLabel =
     isComplete
       ? 'Complete'
       : normalizedProgress >= 100
       ? 'Finalizing'
       : normalizedProgress > 0
-        ? 'Compressing'
+        ? activeLabel
         : 'Ready'
   const isActive = normalizedProgress > 0 && normalizedProgress < 100
 
@@ -32,7 +41,7 @@ export function CompressionProgress({
         </span>
       </div>
       <div
-        aria-label="Compression progress"
+        aria-label="Export progress"
         aria-valuemax={100}
         aria-valuemin={0}
         aria-valuenow={normalizedProgress}

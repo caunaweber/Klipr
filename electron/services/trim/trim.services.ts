@@ -34,20 +34,35 @@ export async function trimVideo(options: TrimOptions): Promise<string> {
             [
                 '-y',
 
-                '-ss',
-                String(startTime),
-
                 '-i',
                 filePath,
+
+                '-ss',
+                String(startTime),
 
                 '-t',
                 String(clipDuration),
 
-                '-c',
-                'copy',
+                '-c:v',
+                'libx264',
+
+                '-preset',
+                'veryfast',
+
+                '-crf',
+                '18',
+
+                '-c:a',
+                'aac',
+
+                '-b:a',
+                '160k',
 
                 '-progress',
                 'pipe:1',
+
+                '-movflags',
+                '+faststart',
 
                 outputPath
             ]

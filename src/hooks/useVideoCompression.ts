@@ -1,8 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CompressionCodec, CompressionResult } from '../../electron/types/compression'
+import type { TrimResult } from '../../electron/types/trim'
 import type { VideoInfo } from '../../electron/types/video'
 
-type CompressionStatus = 'idle' | 'loading-video' | 'compressing' | 'cancelling' | 'success' | 'error' | 'cancelled'
+type VideoOperationStatus =
+  | 'idle'
+  | 'loading-video'
+  | 'compressing'
+  | 'trimming'
+  | 'cancelling'
+  | 'success'
+  | 'error'
+  | 'cancelled'
+type ExportKind = 'compression' | 'trim'
+type ExportResult = CompressionResult | TrimResult
 const SUPPORTED_VIDEO_EXTENSIONS = ['.mp4', '.avi', '.mkv']
 
 function getErrorText(error: unknown) {
@@ -24,8 +35,8 @@ function getCompressionErrorMessage(error: unknown) {
     return 'Target size is too small for this video. Try a larger size or a shorter trim.'
   }
 
-  if (errorText.includes('A compression is already active')) {
-    return 'A compression is already running.'
+  if (errorText.includes('A video operation is already active')) {
+    return 'Another video operation is already running.'
   }
 
   if (errorText.includes('Video not authorized')) {
@@ -46,29 +57,69 @@ function getCompressionErrorMessage(error: unknown) {
   return 'Compression failed. Check the settings and try again.'
 }
 
+function getTrimErrorMessage(error: unknown) {
+  const errorText = getErrorText(error)
+
+  if (
+    errorText.includes('ENOENT') ||
+    errorText.includes('no such file or directory') ||
+    errorText.includes('cannot find the file')
+  ) {
+    return 'Selected video file could not be found. Select it again.'
+  }
+
+  if (errorText.includes('A video operation is already active')) {
+    return 'Another video operation is already running.'
+  }
+
+  if (errorText.includes('Video not authorized')) {
+    return 'This video is no longer available. Select it again.'
+  }
+
+  if (
+    errorText.includes('Invalid clip duration') ||
+    errorText.includes('Invalid trim parameters')
+  ) {
+    return 'The selected trim range is invalid. Reset trim and try again.'
+  }
+
+  if (errorText.includes('FFmpeg trim exited')) {
+    return 'Could not export trimmed clip.'
+  }
+
+  return 'Could not export trimmed clip.'
+}
+
 export function useVideoCompression() {
   const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null)
   const [targetSizeMB, setTargetSizeMB] = useState('10')
   const [progress, setProgress] = useState(0)
   const [useTwoPass, setUseTwoPass] = useState(false)
   const [isCompressing, setIsCompressing] = useState(false)
+  const [isTrimming, setIsTrimming] = useState(false)
   const [isSelectingVideo, setIsSelectingVideo] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
   const [codec, setCodec] = useState<CompressionCodec>('h265')
   const [clipStart, setClipStart] = useState(0)
   const [clipEnd, setClipEnd] = useState(0)
-  const [status, setStatus] = useState<CompressionStatus>('idle')
+  const [status, setStatus] = useState<VideoOperationStatus>('idle')
   const [message, setMessage] = useState<string | null>(null)
-  const [compressionResult, setCompressionResult] =
-    useState<CompressionResult | null>(null)
+  const [exportResult, setExportResult] =
+    useState<ExportResult | null>(null)
+  const [exportKind, setExportKind] = useState<ExportKind | null>(null)
   const cancelRequestedRef = useRef(false)
+  const activeOperationRef = useRef<ExportKind | null>(null)
+
+  const isVideoOperationActive =
+    isCompressing || isTrimming || isCancelling
 
   const applySelectedVideo = (info: VideoInfo) => {
     setVideoInfo(info)
     setClipStart(0)
     setClipEnd(info.duration)
     setProgress(0)
-    setCompressionResult(null)
+    setExportResult(null)
+    setExportKind(null)
     setStatus('idle')
     setMessage(null)
   }
@@ -78,7 +129,8 @@ export function useVideoCompression() {
     setClipStart(0)
     setClipEnd(0)
     setProgress(0)
-    setCompressionResult(null)
+    setExportResult(null)
+    setExportKind(null)
     setStatus('idle')
     setMessage(null)
   }
@@ -141,36 +193,42 @@ export function useVideoCompression() {
     }
   }
 
-  const cancelCompression = async () => {
-    if (!isCompressing || isCancelling) return
+  const cancelVideoOperation = async () => {
+    if (!isVideoOperationActive || isCancelling) return
 
     setIsCancelling(true)
     cancelRequestedRef.current = true
     setStatus('cancelling')
-    setMessage('Cancelling compression...')
+    setMessage(
+      activeOperationRef.current === 'trim'
+        ? 'Cancelling trim...'
+        : 'Cancelling compression...',
+    )
 
     try {
-      await window.videoCompressor.cancelCompression()
+      await window.videoCompressor.cancelVideoOperation()
     } catch (error) {
       console.error(error)
       setStatus('error')
-      setMessage('Could not cancel compression. Please try again.')
+      setMessage('Could not cancel the current operation. Please try again.')
       setIsCancelling(false)
     }
   }
 
   const compressVideo = async () => {
-    if (!videoInfo) return
+    if (!videoInfo || isVideoOperationActive) return
 
     setIsCompressing(true)
     setIsCancelling(false)
     cancelRequestedRef.current = false
+    activeOperationRef.current = 'compression'
     setStatus('compressing')
     setMessage(null)
 
     try {
       setProgress(0)
-      setCompressionResult(null)
+      setExportResult(null)
+      setExportKind(null)
 
       const result = await window.videoCompressor.compressVideo({
         videoId: videoInfo.id,
@@ -181,7 +239,8 @@ export function useVideoCompression() {
         endTime: clipEnd,
       })
 
-      setCompressionResult(result)
+      setExportResult(result)
+      setExportKind('compression')
       setStatus('success')
       setMessage(null)
       void notify('Your compressed video is ready.', 'Compression complete')
@@ -189,7 +248,8 @@ export function useVideoCompression() {
     } catch (error) {
 
       console.error(error)
-      setCompressionResult(null)
+      setExportResult(null)
+      setExportKind(null)
       setProgress(0)
 
       const wasCancelled = cancelRequestedRef.current
@@ -211,14 +271,71 @@ export function useVideoCompression() {
       setIsCompressing(false)
       setIsCancelling(false)
       cancelRequestedRef.current = false
+      activeOperationRef.current = null
+    }
+  }
+
+  const trimVideo = async () => {
+    if (!videoInfo || isVideoOperationActive) return
+
+    setIsTrimming(true)
+    setIsCancelling(false)
+    cancelRequestedRef.current = false
+    activeOperationRef.current = 'trim'
+    setStatus('trimming')
+    setMessage(null)
+
+    try {
+      setProgress(0)
+      setExportResult(null)
+      setExportKind(null)
+
+      const result = await window.videoCompressor.trimVideo({
+        videoId: videoInfo.id,
+        startTime: clipStart,
+        endTime: clipEnd,
+      })
+
+      setExportResult(result)
+      setExportKind('trim')
+      setStatus('success')
+      setMessage('Clip exported.')
+      void notify('Clip exported.', 'Trim complete')
+
+    } catch (error) {
+
+      console.error(error)
+      setExportResult(null)
+      setExportKind(null)
+      setProgress(0)
+
+      const wasCancelled = cancelRequestedRef.current
+      const errorMessage = wasCancelled
+        ? 'Trim cancelled.'
+        : getTrimErrorMessage(error)
+
+      setStatus(wasCancelled ? 'cancelled' : 'error')
+
+      if (wasCancelled) {
+        setMessage(errorMessage)
+      } else {
+        setMessage(null)
+        void notify(errorMessage, 'Trim failed')
+      }
+
+    } finally {
+      setIsTrimming(false)
+      setIsCancelling(false)
+      cancelRequestedRef.current = false
+      activeOperationRef.current = null
     }
   }
 
   const openResultFolder = async () => {
-    if (!compressionResult) return
+    if (!exportResult) return
 
     try {
-      await window.videoCompressor.openResultFolder(compressionResult.outputId)
+      await window.videoCompressor.openResultFolder(exportResult.outputId)
     } catch (error) {
       console.error(error)
       setStatus('error')
@@ -248,14 +365,17 @@ export function useVideoCompression() {
     clipEnd,
     clipStart,
     codec,
-    cancelCompression,
+    cancelVideoOperation,
     clearVideo,
     compressVideo,
-    compressionResult,
     dismissMessage,
+    exportKind,
+    exportResult,
     isCancelling,
     isCompressing,
     isSelectingVideo,
+    isTrimming,
+    isVideoOperationActive,
     message,
     openResultFolder,
     progress,
@@ -269,6 +389,7 @@ export function useVideoCompression() {
     showPreviewError,
     status,
     targetSizeMB,
+    trimVideo,
     useTwoPass,
     videoInfo,
   }

@@ -2,14 +2,15 @@ import { useRef, useState } from 'react'
 import './App.css'
 import {
   Play,
+  Scissors,
   SlidersHorizontal,
   Square,
 } from 'lucide-react'
 import { AppToast } from './components/AppToast'
 import { AppTitleBar } from './components/AppTitleBar'
 import { CodecSelect } from './components/CodecSelect'
-import { CompressionProgress } from './components/CompressionProgress'
-import { CompressionResult } from './components/CompressionResult'
+import { ExportProgress } from './components/ExportProgress'
+import { ExportResult } from './components/ExportResult'
 import { TargetSizeInput } from './components/TargetSizeInput'
 import { TwoPassToggle } from './components/TwoPassToggle'
 import { VideoDropzone } from './components/VideoDropzone'
@@ -23,17 +24,20 @@ function App() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [isVideoLeaving, setIsVideoLeaving] = useState(false)
   const {
-    cancelCompression,
+    cancelVideoOperation,
     clipEnd,
     clipStart,
     codec,
     clearVideo,
     compressVideo,
-    compressionResult,
     dismissMessage,
+    exportKind,
+    exportResult,
     isCancelling,
     isCompressing,
     isSelectingVideo,
+    isTrimming,
+    isVideoOperationActive,
     message,
     openResultFolder,
     progress,
@@ -47,6 +51,7 @@ function App() {
     showPreviewError,
     status,
     targetSizeMB,
+    trimVideo,
     useTwoPass,
     videoInfo,
   } = useVideoCompression()
@@ -63,7 +68,21 @@ function App() {
       numericTargetSizeMB <= 0 ||
       numericTargetSizeMB >= videoInfo.sizeMB
     : false
-  const isCompressDisabled = !videoInfo || isTargetSizeInvalid
+  const selectedClipDuration = clipEnd - clipStart
+  const isTrimRangeInvalid = selectedClipDuration < 1
+  const isCompressDisabled =
+    !videoInfo ||
+    isTargetSizeInvalid ||
+    isTrimRangeInvalid ||
+    (isVideoOperationActive && !isCompressing)
+  const isTrimDisabled =
+    !videoInfo ||
+    isTrimRangeInvalid ||
+    (isVideoOperationActive && !isTrimming)
+  const progressOperation =
+    status === 'trimming' || exportKind === 'trim'
+      ? 'trim'
+      : 'compression'
   const messageTone =
     status === 'success'
       ? 'success'
@@ -84,7 +103,7 @@ function App() {
   }
 
   const handleClearVideo = () => {
-    if (isCompressing || isVideoLeaving) return
+    if (isVideoOperationActive || isVideoLeaving) return
 
     setIsVideoLeaving(true)
     window.setTimeout(() => {
@@ -95,11 +114,20 @@ function App() {
 
   const handleCompressButtonClick = () => {
     if (isCompressing) {
-      void cancelCompression()
+      void cancelVideoOperation()
       return
     }
 
     void compressVideo()
+  }
+
+  const handleTrimButtonClick = () => {
+    if (isTrimming) {
+      void cancelVideoOperation()
+      return
+    }
+
+    void trimVideo()
   }
 
   return (
@@ -135,7 +163,7 @@ function App() {
                 clipStart={clipStart}
                 currentTime={player.currentTime}
                 duration={player.duration || videoInfo.duration}
-                isClearDisabled={isCompressing || isVideoLeaving}
+                isClearDisabled={isVideoOperationActive || isVideoLeaving}
                 isMuted={player.isMuted}
                 isPlaying={player.isPlaying}
                 onChangeVolume={player.changeVolume}
@@ -170,7 +198,7 @@ function App() {
               <section
                 className={cn(
                   'relative overflow-hidden rounded-lg border border-border/80 bg-card/85 p-4 shadow-soft backdrop-blur transition-colors',
-                  isCompressing && 'compression-panel-active border-primary/35',
+                  isVideoOperationActive && 'compression-panel-active border-primary/35',
                 )}
               >
                 <div className="mb-3 flex items-center gap-2">
@@ -199,34 +227,55 @@ function App() {
                     onValueChange={setTargetSizeMB}
                   />
 
-                  <Button
-                    className={cn(
-                      'compress-action-button group w-full overflow-hidden',
-                      isCompressing
-                        ? 'border-primary/50 bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
-                        : 'bg-[linear-gradient(135deg,hsl(var(--primary))_0%,#7c3aed_52%,#2563eb_100%)] shadow-glow hover:shadow-[0_0_42px_rgb(124_58_237_/_0.34)]',
-                    )}
-                    disabled={isCompressDisabled || isCancelling}
-                    onClick={handleCompressButtonClick}
-                    variant={isCompressing ? 'outline' : 'default'}
-                  >
-                    {isCompressing ? <Square /> : <Play />}
-                    {isCompressing
-                      ? isCancelling
-                        ? 'Cancelling...'
-                        : 'Cancel'
-                      : 'Compress'}
-                  </Button>
+                  <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                    <Button
+                      className={cn(
+                        'compress-action-button group w-full overflow-hidden',
+                        isCompressing
+                          ? 'border-primary/50 bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
+                          : 'bg-[linear-gradient(135deg,hsl(var(--primary))_0%,#7c3aed_52%,#2563eb_100%)] shadow-glow hover:shadow-[0_0_42px_rgb(124_58_237_/_0.34)]',
+                      )}
+                      disabled={isCompressDisabled || isCancelling}
+                      onClick={handleCompressButtonClick}
+                      variant={isCompressing ? 'outline' : 'default'}
+                    >
+                      {isCompressing ? <Square /> : <Play />}
+                      {isCompressing
+                        ? isCancelling
+                          ? 'Cancelling...'
+                          : 'Cancel'
+                        : 'Compress'}
+                    </Button>
 
-                  <CompressionProgress
-                    isComplete={Boolean(compressionResult)}
+                    <Button
+                      className="w-full sm:w-auto"
+                      disabled={isTrimDisabled || isCancelling}
+                      onClick={handleTrimButtonClick}
+                      type="button"
+                      variant={isTrimming ? 'outline' : 'secondary'}
+                    >
+                      {isTrimming ? <Square /> : <Scissors />}
+                      {isTrimming
+                        ? isCancelling
+                          ? 'Cancelling...'
+                          : 'Cancel'
+                        : 'Trim only'}
+                    </Button>
+                  </div>
+
+                  <ExportProgress
+                    isComplete={Boolean(exportResult)}
+                    operation={progressOperation}
                     progress={progress}
                   />
                 </div>
               </section>
 
-              {compressionResult && (
-                <CompressionResult onOpenFolder={openResultFolder} />
+              {exportResult && exportKind && (
+                <ExportResult
+                  kind={exportKind}
+                  onOpenFolder={openResultFolder}
+                />
               )}
             </aside>
           )}
