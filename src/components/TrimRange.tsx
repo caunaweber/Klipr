@@ -1,4 +1,4 @@
-import { useState, type RefObject } from 'react'
+import { useState, type CSSProperties, type RefObject } from 'react'
 import { Loader2, RotateCcw, Scissors } from 'lucide-react'
 import { Range } from 'react-range'
 import { formatDuration } from '../utils/formatDuration'
@@ -35,6 +35,19 @@ export function TrimRange({
 
   const startPercent = (clipStart / duration) * 100
   const endPercent = (clipEnd / duration) * 100
+  const selectedDuration = clipEnd - clipStart
+  const trackStyle = {
+    background: `linear-gradient(
+      to right,
+      hsl(var(--muted) / 0.46) 0%,
+      hsl(var(--muted) / 0.46) ${startPercent}%,
+      hsl(var(--primary)) ${startPercent}%,
+      #7c3aed ${(startPercent + endPercent) / 2}%,
+      #2563eb ${endPercent}%,
+      hsl(var(--muted) / 0.46) ${endPercent}%,
+      hsl(var(--muted) / 0.46) 100%
+    )`,
+  } satisfies CSSProperties
   const handleResetTrim = () => {
     setIsResetAnimating(false)
     window.requestAnimationFrame(() => {
@@ -44,14 +57,24 @@ export function TrimRange({
   }
 
   return (
-    <div className="mt-1 rounded-b-md border border-border/70 bg-background/45 px-3 pb-4 pt-3 shadow-[inset_0_1px_0_rgb(255_255_255_/_0.04)] backdrop-blur sm:px-4">
-      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <h3 className="text-sm font-semibold">Trim</h3>
-          <p className="mt-0.5 break-words text-xs text-muted-foreground">
-            {formatDuration(clipStart)} to {formatDuration(clipEnd)} (
-            {formatDuration(clipEnd - clipStart)})
-          </p>
+    <div className="trim-panel mt-1 rounded-b-md border border-border/80 bg-card/85 px-3 pb-4 pt-3 shadow-[inset_0_1px_0_rgb(255_255_255_/_0.04)] backdrop-blur sm:px-4">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
+          <div className="trim-duration-badge">
+            <span>Selected</span>
+            <strong>{formatDuration(selectedDuration)}</strong>
+          </div>
+
+          <div className="grid min-w-[11rem] flex-1 grid-cols-2 gap-2 text-xs sm:flex-none">
+            <div className="trim-time-chip">
+              <span>Start</span>
+              <strong>{formatDuration(clipStart)}</strong>
+            </div>
+            <div className="trim-time-chip">
+              <span>End</span>
+              <strong>{formatDuration(clipEnd)}</strong>
+            </div>
+          </div>
         </div>
 
         <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -77,17 +100,28 @@ export function TrimRange({
             </span>
           </Tooltip>
 
-          <Button
-            className="h-9"
-            disabled={isTrimDisabled || isTrimming}
-            onClick={onTrim}
-            size="sm"
-            type="button"
-            variant="secondary"
+          <Tooltip
+            content="Export selected range."
+            fullWidth={false}
           >
-            {isTrimming ? <Loader2 className="animate-spin" /> : <Scissors />}
-            {isTrimming ? 'Exporting...' : 'Trim'}
-          </Button>
+            <span className="inline-flex">
+              <Button
+                className="h-9"
+                disabled={isTrimDisabled || isTrimming}
+                onClick={onTrim}
+                size="sm"
+                type="button"
+                variant="secondary"
+              >
+                {isTrimming ? (
+                  <Loader2 className="animate-spin" />
+                ) : (
+                  <Scissors />
+                )}
+                {isTrimming ? 'Exporting...' : 'Trim'}
+              </Button>
+            </span>
+          </Tooltip>
         </div>
       </div>
 
@@ -115,18 +149,7 @@ export function TrimRange({
         renderTrack={({ props, children }) => (
           <div
             {...props}
-            style={{
-              ...props.style,
-              background: `linear-gradient(
-                to right,
-                hsl(var(--muted)) 0%,
-                hsl(var(--muted)) ${startPercent}%,
-                hsl(var(--primary)) ${startPercent}%,
-                hsl(var(--primary)) ${endPercent}%,
-                hsl(var(--muted)) ${endPercent}%,
-                hsl(var(--muted)) 100%
-              )`,
-            }}
+            style={{ ...props.style, ...trackStyle }}
             className="trim-track"
           >
             {children}
