@@ -13,6 +13,7 @@ export function useVideoPlayer({
   sourceKey,
   videoRef,
 }: UseVideoPlayerOptions) {
+  const END_TIME_EPSILON = 0.05
   const [currentTime, setCurrentTime] = useState(clipStart)
   const [duration, setDuration] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -127,10 +128,11 @@ export function useVideoPlayer({
     }
 
     const updateTime = () => {
-      if (video.currentTime >= clipEnd) {
-        video.currentTime = clipEnd
+      if (video.currentTime >= clipEnd - END_TIME_EPSILON) {
         video.pause()
         setIsPlaying(false)
+        setCurrentTime(clipEnd)
+        return
       }
 
       setCurrentTime(video.currentTime)
