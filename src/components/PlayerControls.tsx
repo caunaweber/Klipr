@@ -50,7 +50,10 @@ export function PlayerControls({
 
   return (
     <div className="pointer-events-auto flex items-end justify-between gap-2">
-      <div className="flex h-11 items-center gap-2 rounded-md border border-white/[0.06] bg-black/[0.16] px-2 shadow-[inset_0_1px_0_rgb(255_255_255_/_0.04)] transition-all duration-200 hover:border-white/[0.14] hover:bg-black/[0.34] hover:backdrop-blur-sm">
+      <div
+        className="flex h-11 items-center gap-2 rounded-md border border-white/[0.06] bg-black/[0.16] px-2 shadow-[inset_0_1px_0_rgb(255_255_255_/_0.04)] transition-all duration-200 hover:border-white/[0.14] hover:bg-black/[0.34] hover:backdrop-blur-sm"
+        onClick={(event) => event.stopPropagation()}
+      >
       <Tooltip
         content={isPlaying ? 'Pause preview.' : 'Play preview.'}
         fullWidth={false}
@@ -78,9 +81,11 @@ export function PlayerControls({
 
       <div
         className="group/volume relative flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-white/[0.06] bg-black/[0.16] shadow-[inset_0_1px_0_rgb(255_255_255_/_0.04)] transition-all duration-200 hover:border-white/[0.14] hover:bg-black/[0.34] hover:backdrop-blur-sm"
+        onClick={(event) => event.stopPropagation()}
         onMouseLeave={releaseFocusInside}
       >
-        <div className="pointer-events-none absolute bottom-[calc(100%-0.125rem)] left-1/2 z-30 flex h-32 w-10 -translate-x-1/2 translate-y-1 items-center justify-center rounded-md border border-white/[0.12] bg-black/[0.82] px-1.5 py-3 opacity-0 shadow-[0_18px_60px_rgb(0_0_0_/_0.48)] backdrop-blur-md transition-all duration-150 group-hover/volume:pointer-events-auto group-hover/volume:translate-y-0 group-hover/volume:opacity-100">
+        <div className="absolute bottom-full left-0 h-2 w-full" />
+        <div className="pointer-events-none absolute bottom-[calc(100%+0.375rem)] left-1/2 z-30 flex h-32 w-10 -translate-x-1/2 translate-y-1 items-center justify-center rounded-md border border-white/[0.12] bg-black/[0.5] px-1.5 py-3 opacity-0 shadow-[0_18px_60px_rgb(0_0_0_/_0.48)] backdrop-blur-md transition-all duration-150 group-hover/volume:pointer-events-auto group-hover/volume:translate-y-0 group-hover/volume:opacity-100">
           <input
             aria-label="Preview volume"
             className="preview-volume-slider preview-volume-slider-vertical"

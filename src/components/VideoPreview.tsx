@@ -90,7 +90,10 @@ export function VideoPreview({
           </span>
         </Tooltip>
       </div>
-      <div className="group/video relative my-1 min-h-0 flex-1 overflow-hidden rounded-md border border-primary/15 bg-black shadow-[inset_0_0_0_1px_rgb(255_255_255_/_0.05),inset_0_0_0_2px_rgb(0_0_0_/_0.68),inset_0_22px_70px_rgb(0_0_0_/_0.46),0_0_34px_rgb(79_70_229_/_0.12)]">
+      <div
+        className="group/video relative my-1 min-h-0 flex-1 overflow-hidden rounded-md border border-primary/15 bg-black shadow-[inset_0_0_0_1px_rgb(255_255_255_/_0.05),inset_0_0_0_2px_rgb(0_0_0_/_0.68),inset_0_22px_70px_rgb(0_0_0_/_0.46),0_0_34px_rgb(79_70_229_/_0.12)]"
+        onClick={onTogglePlayback}
+      >
         <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-20 bg-[linear-gradient(180deg,rgb(255_255_255_/_0.08),transparent)]" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-20 bg-[linear-gradient(0deg,rgb(0_0_0_/_0.48),transparent)]" />
         <div className="pointer-events-none absolute inset-0 z-10 rounded-md ring-1 ring-inset ring-primary/15" />
