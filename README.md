@@ -12,18 +12,26 @@ Sharing clips is often blocked by file size limits. Klipr focuses on a direct wo
 
 The app is designed for quick everyday use, but the project also explores desktop development concerns such as secure Electron IPC, local file handling, custom media preview, FFmpeg process management, and production packaging.
 
+## What's New in 1.1.0
+
+- Added Trim only export for cutting clips without recompressing them.
+- Uses fast keyframe-based cutting for near-instant trim exports.
+- Improved the custom video player layout and trim controls.
+- Updated dependencies and resolved known npm audit vulnerabilities.
+
 ## Features
 
 - Select local videos through file picker or drag and drop.
 - Preview the selected video inside the app.
 - Trim clips by choosing start and end points.
+- Export a selected clip without compression.
 - Set a target output size in MB.
 - Choose between H.264 and H.265/HEVC compression.
 - Optional 2-pass compression for better size/quality balance.
 - Cancel an active compression.
-- Open the output folder after compression finishes.
+- Open the output folder after export finishes.
 - Supports MP4, MKV, and AVI input files.
-- Exports compressed videos as MP4.
+- Exports compressed videos and trimmed clips as MP4.
 
 ## Technical Highlights
 
@@ -42,10 +50,10 @@ Download the latest Windows installer from the Releases page:
 
 [Klipr releases](https://github.com/caunaweber/Klipr/releases/latest)
 
-For version 1.0.0, the installer file is:
+For version 1.1.0, the installer file is:
 
 ```text
-Klipr-Windows-1.0.0-Setup.exe
+Klipr-Windows-1.1.0-Setup.exe
 ```
 
 Run the setup file normally and launch Klipr after installation.
@@ -112,18 +120,26 @@ Compartilhar clipes muitas vezes esbarra em limites de tamanho de arquivo. O Kli
 
 O app foi pensado para uso rápido no dia a dia, mas o projeto também trabalha pontos importantes de desenvolvimento desktop, como IPC seguro no Electron, manipulação de arquivos locais, preview customizado de mídia, gerenciamento de processos FFmpeg e empacotamento para produção.
 
+## Novidades da Versão 1.1.0
+
+- Adicionada exportação Trim only para cortar clipes sem recompressão.
+- Uso de corte rápido baseado em keyframes para exportações quase instantâneas.
+- Melhorias no layout do player customizado e nos controles de trim.
+- Dependências atualizadas e vulnerabilidades conhecidas do npm audit resolvidas.
+
 ## Funcionalidades
 
 - Seleção de vídeos locais pelo explorador de arquivos ou por drag and drop.
 - Preview do vídeo selecionado dentro do app.
 - Corte de clipes com definição de início e fim.
+- Exportação do trecho selecionado sem compressão.
 - Definição do tamanho final desejado em MB.
 - Escolha entre compressão H.264 e H.265/HEVC.
 - Compressão em 2 passes opcional para melhor equilíbrio entre tamanho e qualidade.
 - Cancelamento de compressão em andamento.
-- Botão para abrir a pasta do arquivo final após a compressão.
+- Botão para abrir a pasta do arquivo final após a exportação.
 - Suporte a arquivos de entrada MP4, MKV e AVI.
-- Exportação dos vídeos comprimidos em MP4.
+- Exportação dos vídeos comprimidos e clipes cortados em MP4.
 
 ## Destaques Técnicos
 
@@ -142,10 +158,10 @@ Baixe o instalador Windows mais recente pela página de Releases:
 
 [Releases do Klipr](https://github.com/caunaweber/Klipr/releases/latest)
 
-Para a versão 1.0.0, o arquivo do instalador é:
+Para a versão 1.1.0, o arquivo do instalador é:
 
 ```text
-Klipr-Windows-1.0.0-Setup.exe
+Klipr-Windows-1.1.0-Setup.exe
 ```
 
 Execute o arquivo de setup normalmente e abra o Klipr após a instalação.
