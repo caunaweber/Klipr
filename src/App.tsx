@@ -2,7 +2,6 @@ import { useRef, useState } from 'react'
 import './App.css'
 import {
   Play,
-  Scissors,
   SlidersHorizontal,
   Square,
 } from 'lucide-react'
@@ -120,11 +119,6 @@ function App() {
   }
 
   const handleTrimButtonClick = () => {
-    if (isTrimming) {
-      void cancelVideoOperation()
-      return
-    }
-
     void trimVideo()
   }
 
@@ -164,12 +158,15 @@ function App() {
                 isClearDisabled={isVideoOperationActive || isVideoLeaving}
                 isMuted={player.isMuted}
                 isPlaying={player.isPlaying}
+                isTrimDisabled={isTrimDisabled}
+                isTrimming={isTrimming}
                 onChangeVolume={player.changeVolume}
                 onClipEndChange={setClipEnd}
                 onClipStartChange={setClipStart}
                 onClearVideo={handleClearVideo}
                 onPreviewError={showPreviewError}
                 onResetTrim={resetTrim}
+                onTrim={handleTrimButtonClick}
                 onToggleMute={player.toggleMute}
                 onTogglePlayback={player.togglePlayback}
                 videoInfo={videoInfo}
@@ -225,7 +222,7 @@ function App() {
                     onValueChange={setTargetSizeMB}
                   />
 
-                  <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                  <div>
                     <Button
                       className={cn(
                         'compress-action-button group w-full overflow-hidden',
@@ -243,21 +240,6 @@ function App() {
                           ? 'Cancelling...'
                           : 'Cancel'
                         : 'Compress'}
-                    </Button>
-
-                    <Button
-                      className="w-full sm:w-auto"
-                      disabled={isTrimDisabled || isCancelling}
-                      onClick={handleTrimButtonClick}
-                      type="button"
-                      variant={isTrimming ? 'outline' : 'secondary'}
-                    >
-                      {isTrimming ? <Square /> : <Scissors />}
-                      {isTrimming
-                        ? isCancelling
-                          ? 'Cancelling...'
-                          : 'Cancel'
-                        : 'Trim only'}
                     </Button>
                   </div>
 

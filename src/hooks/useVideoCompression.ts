@@ -108,7 +108,6 @@ export function useVideoCompression() {
     useState<ExportResult | null>(null)
   const [exportKind, setExportKind] = useState<ExportKind | null>(null)
   const cancelRequestedRef = useRef(false)
-  const activeOperationRef = useRef<ExportKind | null>(null)
 
   const isVideoOperationActive =
     isCompressing || isTrimming || isCancelling
@@ -194,16 +193,12 @@ export function useVideoCompression() {
   }
 
   const cancelVideoOperation = async () => {
-    if (!isVideoOperationActive || isCancelling) return
+    if (!isCompressing || isCancelling) return
 
     setIsCancelling(true)
     cancelRequestedRef.current = true
     setStatus('cancelling')
-    setMessage(
-      activeOperationRef.current === 'trim'
-        ? 'Cancelling trim...'
-        : 'Cancelling compression...',
-    )
+    setMessage('Cancelling compression...')
 
     try {
       await window.videoCompressor.cancelVideoOperation()
@@ -221,7 +216,6 @@ export function useVideoCompression() {
     setIsCompressing(true)
     setIsCancelling(false)
     cancelRequestedRef.current = false
-    activeOperationRef.current = 'compression'
     setStatus('compressing')
     setMessage(null)
 
@@ -271,7 +265,6 @@ export function useVideoCompression() {
       setIsCompressing(false)
       setIsCancelling(false)
       cancelRequestedRef.current = false
-      activeOperationRef.current = null
     }
   }
 
@@ -279,9 +272,6 @@ export function useVideoCompression() {
     if (!videoInfo || isVideoOperationActive) return
 
     setIsTrimming(true)
-    setIsCancelling(false)
-    cancelRequestedRef.current = false
-    activeOperationRef.current = 'trim'
     setStatus('trimming')
     setMessage(null)
 
@@ -298,7 +288,7 @@ export function useVideoCompression() {
       setExportResult(result)
       setExportKind('trim')
       setStatus('success')
-      setMessage('Clip exported.')
+      setMessage(null)
       void notify('Clip exported.', 'Trim complete')
 
     } catch (error) {
@@ -307,25 +297,14 @@ export function useVideoCompression() {
       setExportResult(null)
       setExportKind(null)
 
-      const wasCancelled = cancelRequestedRef.current
-      const errorMessage = wasCancelled
-        ? 'Trim cancelled.'
-        : getTrimErrorMessage(error)
+      const errorMessage = getTrimErrorMessage(error)
 
-      setStatus(wasCancelled ? 'cancelled' : 'error')
-
-      if (wasCancelled) {
-        setMessage(errorMessage)
-      } else {
-        setMessage(null)
-        void notify(errorMessage, 'Trim failed')
-      }
+      setStatus('error')
+      setMessage(null)
+      void notify(errorMessage, 'Trim failed')
 
     } finally {
       setIsTrimming(false)
-      setIsCancelling(false)
-      cancelRequestedRef.current = false
-      activeOperationRef.current = null
     }
   }
 

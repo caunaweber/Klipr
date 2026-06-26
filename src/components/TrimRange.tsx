@@ -1,5 +1,5 @@
 import { useState, type RefObject } from 'react'
-import { RotateCcw } from 'lucide-react'
+import { Loader2, RotateCcw, Scissors } from 'lucide-react'
 import { Range } from 'react-range'
 import { formatDuration } from '../utils/formatDuration'
 import { Tooltip } from './Tooltip'
@@ -9,9 +9,12 @@ interface TrimRangeProps {
   clipEnd: number
   clipStart: number
   duration: number
+  isTrimDisabled: boolean
+  isTrimming: boolean
   onClipEndChange: (clipEnd: number) => void
   onClipStartChange: (clipStart: number) => void
   onResetTrim: () => void
+  onTrim: () => void
   videoRef: RefObject<HTMLVideoElement>
 }
 
@@ -19,9 +22,12 @@ export function TrimRange({
   clipEnd,
   clipStart,
   duration,
+  isTrimDisabled,
+  isTrimming,
   onClipEndChange,
   onClipStartChange,
   onResetTrim,
+  onTrim,
   videoRef,
 }: TrimRangeProps) {
   const [activeThumb, setActiveThumb] = useState(0)
@@ -48,27 +54,41 @@ export function TrimRange({
           </p>
         </div>
 
-        <Tooltip
-          className="shrink-0"
-          content="Restore full video range."
-          fullWidth={false}
-        >
-          <span className="inline-flex">
-            <Button
-              aria-label="Reset trim"
-              onClick={handleResetTrim}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              <RotateCcw
-                className={isResetAnimating ? 'trim-reset-spin' : undefined}
-                onAnimationEnd={() => setIsResetAnimating(false)}
-              />
-              Reset
-            </Button>
-          </span>
-        </Tooltip>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <Tooltip
+            content="Restore full video range."
+            fullWidth={false}
+          >
+            <span className="inline-flex">
+              <Button
+                aria-label="Reset trim"
+                className="h-9 px-2.5 text-muted-foreground hover:text-foreground"
+                onClick={handleResetTrim}
+                size="sm"
+                type="button"
+                variant="ghost"
+              >
+                <RotateCcw
+                  className={isResetAnimating ? 'trim-reset-spin' : undefined}
+                  onAnimationEnd={() => setIsResetAnimating(false)}
+                />
+                Reset
+              </Button>
+            </span>
+          </Tooltip>
+
+          <Button
+            className="h-9"
+            disabled={isTrimDisabled || isTrimming}
+            onClick={onTrim}
+            size="sm"
+            type="button"
+            variant="secondary"
+          >
+            {isTrimming ? <Loader2 className="animate-spin" /> : <Scissors />}
+            {isTrimming ? 'Exporting...' : 'Trim'}
+          </Button>
+        </div>
       </div>
 
       <Range

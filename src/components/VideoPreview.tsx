@@ -15,12 +15,15 @@ interface VideoPreviewProps {
   isMuted: boolean
   isClearDisabled: boolean
   isPlaying: boolean
+  isTrimDisabled: boolean
+  isTrimming: boolean
   onChangeVolume: (volume: number) => void
   onClipEndChange: (clipEnd: number) => void
   onClipStartChange: (clipStart: number) => void
   onClearVideo: () => void
   onPreviewError: () => void
   onResetTrim: () => void
+  onTrim: () => void
   onToggleMute: () => void
   onTogglePlayback: () => void
   videoInfo: VideoInfo
@@ -36,12 +39,15 @@ export function VideoPreview({
   isMuted,
   isClearDisabled,
   isPlaying,
+  isTrimDisabled,
+  isTrimming,
   onChangeVolume,
   onClipEndChange,
   onClipStartChange,
   onClearVideo,
   onPreviewError,
   onResetTrim,
+  onTrim,
   onToggleMute,
   onTogglePlayback,
   videoInfo,
@@ -124,6 +130,9 @@ export function VideoPreview({
         onClipEndChange={onClipEndChange}
         onClipStartChange={onClipStartChange}
         onResetTrim={onResetTrim}
+        onTrim={onTrim}
+        isTrimDisabled={isTrimDisabled}
+        isTrimming={isTrimming}
         videoRef={videoRef}
       />
     </section>
