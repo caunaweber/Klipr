@@ -155,20 +155,30 @@ export function TrimRange({
             {children}
           </div>
         )}
-        renderThumb={({ props, index }) => (
-          <div
-            {...props}
-            onMouseDown={() => setActiveThumb(index)}
-            className={`trim-thumb group/trim-thumb ${
-              index === 0 ? 'trim-thumb-start' : 'trim-thumb-end'
-            }`}
-          >
-            <span className="trim-thumb-tooltip">
-              {index === 0 ? 'Start' : 'End'}:{' '}
-              {formatDuration(index === 0 ? clipStart : clipEnd)}
-            </span>
-          </div>
-        )}
+        renderThumb={({ props, index }) => {
+          const thumbPercent = index === 0 ? startPercent : endPercent
+          const tooltipPlacement =
+            thumbPercent < 18
+              ? 'trim-thumb-tooltip-start'
+              : thumbPercent > 82
+                ? 'trim-thumb-tooltip-end'
+                : 'trim-thumb-tooltip-center'
+
+          return (
+            <div
+              {...props}
+              onMouseDown={() => setActiveThumb(index)}
+              className={`trim-thumb group/trim-thumb ${
+                index === 0 ? 'trim-thumb-start' : 'trim-thumb-end'
+              }`}
+            >
+              <span className={`trim-thumb-tooltip ${tooltipPlacement}`}>
+                {index === 0 ? 'Start' : 'End'}:{' '}
+                {formatDuration(index === 0 ? clipStart : clipEnd)}
+              </span>
+            </div>
+          )
+        }}
       />
     </div>
   )

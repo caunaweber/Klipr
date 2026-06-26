@@ -194,12 +194,17 @@
   opacity: 1;
 }
 
-.trim-thumb-start .trim-thumb-tooltip {
+.trim-thumb-tooltip-start {
   left: 0;
   transform: none;
 }
 
-.trim-thumb-end .trim-thumb-tooltip {
+.trim-thumb-tooltip-center {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.trim-thumb-tooltip-end {
   left: auto;
   right: 0;
   transform: none;
