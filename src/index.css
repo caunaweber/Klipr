@@ -46,6 +46,7 @@
 
   body {
     @apply min-w-80 bg-background text-foreground;
+    user-select: none;
     background:
       radial-gradient(circle at 12% -8%, rgb(79 70 229 / 0.22), transparent 30rem),
       radial-gradient(circle at 84% 10%, rgb(88 28 135 / 0.24), transparent 28rem),
@@ -56,5 +57,10 @@
   input,
   select {
     font: inherit;
+  }
+
+  input,
+  textarea {
+    user-select: text;
   }
 }
