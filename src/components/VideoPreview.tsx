@@ -55,23 +55,23 @@ export function VideoPreview({
   volume,
 }: VideoPreviewProps) {
   return (
-    <section className="video-preview-shell relative z-10 flex min-h-[32rem] flex-col overflow-hidden rounded-lg border border-border/80 bg-[linear-gradient(180deg,hsl(var(--card))_0%,rgb(3_2_7_/_0.94)_100%)] p-1 shadow-[0_28px_90px_rgb(0_0_0_/_0.48)] backdrop-blur transition-all duration-300 hover:border-primary/35 hover:shadow-[0_32px_100px_rgb(0_0_0_/_0.56),0_0_42px_rgb(124_58_237_/_0.12)] lg:min-h-0 lg:flex-1">
-      <div className="relative z-10 flex flex-col gap-2 rounded-t-md border border-border/70 bg-background/50 px-3 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:px-4">
-        <div className="min-w-0">
-          <h2 className="truncate text-sm font-semibold text-foreground">
+    <section className="video-preview-shell relative z-10 flex min-h-[32rem] flex-col overflow-hidden rounded-lg border border-border/80 bg-card/85 p-1 shadow-[0_24px_80px_rgb(0_0_0_/_0.42)] backdrop-blur transition-all duration-300 hover:border-primary/25 hover:shadow-[0_28px_90px_rgb(0_0_0_/_0.5),0_0_34px_rgb(124_58_237_/_0.08)] lg:min-h-0 lg:flex-1">
+      <div className="relative z-10 flex flex-col gap-1.5 rounded-t-md px-3 py-2 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+        <div className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+          <h2 className="min-w-0 flex-1 truncate text-sm font-semibold leading-5 text-foreground">
             {videoInfo.fileName}
           </h2>
-          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1.5">
-              <HardDrive className="h-3.5 w-3.5 text-primary" />
+          <div className="flex shrink-0 flex-wrap gap-1 text-xs text-muted-foreground">
+            <span className="inline-flex h-5 items-center gap-1 rounded border border-border/60 bg-background/25 px-1.5">
+              <HardDrive className="h-3 w-3 text-primary/90" />
               {videoInfo.sizeMB} MB
             </span>
-            <span className="flex items-center gap-1.5">
-              <Clock3 className="h-3.5 w-3.5 text-primary" />
+            <span className="inline-flex h-5 items-center gap-1 rounded border border-border/60 bg-background/25 px-1.5">
+              <Clock3 className="h-3 w-3 text-primary/90" />
               {formatDuration(videoInfo.duration)}
             </span>
-            <span className="flex items-center gap-1.5">
-              <Maximize2 className="h-3.5 w-3.5 text-primary" />
+            <span className="inline-flex h-5 items-center gap-1 rounded border border-border/60 bg-background/25 px-1.5">
+              <Maximize2 className="h-3 w-3 text-primary/90" />
               {videoInfo.width} x {videoInfo.height}
             </span>
           </div>
@@ -85,6 +85,7 @@ export function VideoPreview({
           <span className="inline-flex">
             <Button
               aria-label="Remove selected video"
+              className="h-8 w-8 text-muted-foreground hover:bg-red-500/10 hover:text-red-200"
               disabled={isClearDisabled}
               onClick={onClearVideo}
               size="icon"
@@ -97,12 +98,12 @@ export function VideoPreview({
         </Tooltip>
       </div>
       <div
-        className="group/video relative my-1 min-h-0 flex-1 overflow-hidden rounded-md border border-primary/15 bg-black shadow-[inset_0_0_0_1px_rgb(255_255_255_/_0.05),inset_0_0_0_2px_rgb(0_0_0_/_0.68),inset_0_22px_70px_rgb(0_0_0_/_0.46),0_0_34px_rgb(79_70_229_/_0.12)]"
+        className="video-frame group/video relative my-1 aspect-video min-h-[18rem] overflow-hidden rounded-md border border-border/70 bg-black shadow-[inset_0_0_0_1px_rgb(255_255_255_/_0.04),inset_0_0_0_2px_rgb(0_0_0_/_0.58),0_18px_48px_rgb(0_0_0_/_0.28)] lg:min-h-0 lg:flex-1"
         onClick={onTogglePlayback}
       >
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-20 bg-[linear-gradient(180deg,rgb(255_255_255_/_0.08),transparent)]" />
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-20 bg-[linear-gradient(0deg,rgb(0_0_0_/_0.48),transparent)]" />
-        <div className="pointer-events-none absolute inset-0 z-10 rounded-md ring-1 ring-inset ring-primary/15" />
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-16 bg-[linear-gradient(180deg,rgb(255_255_255_/_0.055),transparent)]" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-20 bg-[linear-gradient(0deg,rgb(0_0_0_/_0.42),transparent)]" />
+        <div className="pointer-events-none absolute inset-0 z-10 rounded-md ring-1 ring-inset ring-white/[0.06]" />
         <video
           className="h-full w-full rounded-[calc(0.375rem-1px)] bg-black object-contain"
           preload="auto"
