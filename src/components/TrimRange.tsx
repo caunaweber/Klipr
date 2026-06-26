@@ -57,8 +57,8 @@ export function TrimRange({
   }
 
   return (
-    <div className="trim-panel mt-1 rounded-b-md border border-border/80 bg-card/85 px-3 pb-4 pt-3 shadow-[inset_0_1px_0_rgb(255_255_255_/_0.04)] backdrop-blur sm:px-4">
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="trim-panel mt-1 px-3 pb-3 pt-2.5 sm:px-4">
+      <div className="mb-3.5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
           <div className="trim-duration-badge">
             <span>Selected</span>

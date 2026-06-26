@@ -10,7 +10,7 @@
 }
 
 .trim-panel {
-  background: hsl(var(--card) / 0.85);
+  background: transparent;
 }
 
 .trim-duration-badge {
