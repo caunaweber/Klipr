@@ -12,6 +12,10 @@ Sharing clips is often blocked by file size limits. Klipr focuses on a direct wo
 
 The app is designed for quick everyday use, but the project also explores desktop development concerns such as secure Electron IPC, local file handling, custom media preview, FFmpeg process management, and production packaging.
 
+## What's New in 1.1.1
+
+- Fixed the Windows taskbar preview/window title showing the default Vite template name instead of Klipr.
+
 ## What's New in 1.1.0
 
 - Added Trim only export for cutting clips without recompressing them.
@@ -50,10 +54,10 @@ Download the latest Windows installer from the Releases page:
 
 [Klipr releases](https://github.com/caunaweber/Klipr/releases/latest)
 
-For version 1.1.0, the installer file is:
+For version 1.1.1, the installer file is:
 
 ```text
-Klipr-Windows-1.1.0-Setup.exe
+Klipr-Windows-1.1.1-Setup.exe
 ```
 
 Run the setup file normally and launch Klipr after installation.
@@ -120,6 +124,10 @@ Compartilhar clipes muitas vezes esbarra em limites de tamanho de arquivo. O Kli
 
 O app foi pensado para uso rápido no dia a dia, mas o projeto também trabalha pontos importantes de desenvolvimento desktop, como IPC seguro no Electron, manipulação de arquivos locais, preview customizado de mídia, gerenciamento de processos FFmpeg e empacotamento para produção.
 
+## Novidades da Versão 1.1.1
+
+- Corrigido o título da janela/prévia na barra de tarefas do Windows, que ainda exibia o nome padrão do template Vite em vez de Klipr.
+
 ## Novidades da Versão 1.1.0
 
 - Adicionada exportação Trim only para cortar clipes sem recompressão.
@@ -158,10 +166,10 @@ Baixe o instalador Windows mais recente pela página de Releases:
 
 [Releases do Klipr](https://github.com/caunaweber/Klipr/releases/latest)
 
-Para a versão 1.1.0, o arquivo do instalador é:
+Para a versão 1.1.1, o arquivo do instalador é:
 
 ```text
-Klipr-Windows-1.1.0-Setup.exe
+Klipr-Windows-1.1.1-Setup.exe
 ```
 
 Execute o arquivo de setup normalmente e abra o Klipr após a instalação.
