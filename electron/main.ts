@@ -209,6 +209,20 @@ function createWindow() {
     },
   })
 
+  const notifyMaximizeStateChange = () => {
+    if (!win || win.isDestroyed()) {
+      return
+    }
+
+    win.webContents.send(
+      'window:maximized-change',
+      win.isMaximized()
+    )
+  }
+
+  win.on('maximize', notifyMaximizeStateChange)
+  win.on('unmaximize', notifyMaximizeStateChange)
+
   win.setMenuBarVisibility(false)
   win.removeMenu()
 
@@ -315,6 +329,25 @@ ipcMain.handle('open-result-folder', async (_, outputId: string) => {
 ipcMain.handle('window:minimize', (event) => {
   BrowserWindow.fromWebContents(event.sender)?.minimize()
 })
+
+ipcMain.handle('window:toggle-maximize', (event) => {
+  const currentWindow = BrowserWindow.fromWebContents(event.sender)
+
+  if (!currentWindow) {
+    return
+  }
+
+  if (currentWindow.isMaximized()) {
+    currentWindow.unmaximize()
+    return
+  }
+
+  currentWindow.maximize()
+})
+
+ipcMain.handle('window:is-maximized', (event) =>
+  BrowserWindow.fromWebContents(event.sender)?.isMaximized() ?? false
+)
 
 ipcMain.handle('window:close', (event) => {
   BrowserWindow.fromWebContents(event.sender)?.close()

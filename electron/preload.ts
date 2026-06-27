@@ -48,6 +48,25 @@ contextBridge.exposeInMainWorld('windowControls', {
   minimize: () =>
     ipcRenderer.invoke('window:minimize'),
 
+  toggleMaximize: () =>
+    ipcRenderer.invoke('window:toggle-maximize'),
+
+  isMaximized: (): Promise<boolean> =>
+    ipcRenderer.invoke('window:is-maximized'),
+
+  onMaximizedChange: (callback: (isMaximized: boolean) => void) => {
+    const listener = (_: Electron.IpcRendererEvent, isMaximized: boolean) => {
+      callback(isMaximized)
+    }
+    ipcRenderer.on(
+      'window:maximized-change',
+      listener
+    )
+    return () => {
+      ipcRenderer.removeListener('window:maximized-change', listener)
+    }
+  },
+
   close: () =>
     ipcRenderer.invoke('window:close'),
 

@@ -15,6 +15,7 @@ The app is designed for quick everyday use, but the project also explores deskto
 ## What's New in 1.1.1
 
 - Fixed the Windows taskbar preview/window title showing the default Vite template name instead of Klipr.
+- Added a maximize/restore button to the custom title bar.
 
 ## What's New in 1.1.0
 
@@ -127,6 +128,7 @@ O app foi pensado para uso rápido no dia a dia, mas o projeto também trabalha 
 ## Novidades da Versão 1.1.1
 
 - Corrigido o título da janela/prévia na barra de tarefas do Windows, que ainda exibia o nome padrão do template Vite em vez de Klipr.
+- Adicionado botão de maximizar/restaurar na title bar customizada.
 
 ## Novidades da Versão 1.1.0
 

@@ -50,6 +50,9 @@ interface Window {
 
   windowControls: {
     minimize: () => Promise<void>
+    toggleMaximize: () => Promise<void>
+    isMaximized: () => Promise<boolean>
+    onMaximizedChange: (callback: (isMaximized: boolean) => void) => () => void
     close: () => Promise<void>
     openRepository: () => Promise<void>
   }

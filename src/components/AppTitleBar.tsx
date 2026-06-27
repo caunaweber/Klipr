@@ -1,6 +1,27 @@
-import { Minus, X } from 'lucide-react'
+import { Copy, Minus, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
 export function AppTitleBar() {
+  const [isMaximized, setIsMaximized] = useState(false)
+
+  useEffect(() => {
+    let isMounted = true
+
+    void window.windowControls.isMaximized().then((nextIsMaximized) => {
+      if (isMounted) {
+        setIsMaximized(nextIsMaximized)
+      }
+    })
+
+    const unsubscribe =
+      window.windowControls.onMaximizedChange(setIsMaximized)
+
+    return () => {
+      isMounted = false
+      unsubscribe()
+    }
+  }, [])
+
   return (
     <div
       className="app-titlebar flex h-9 select-none items-center justify-between border-b border-border/80 bg-background/90 text-foreground backdrop-blur"
@@ -38,6 +59,23 @@ export function AppTitleBar() {
           type="button"
         >
           <Minus className="h-4 w-4" />
+        </button>
+        <button
+          aria-label={isMaximized ? 'Restore' : 'Maximize'}
+          className="app-titlebar-button flex h-full w-11 items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          onClick={() => {
+            void window.windowControls.toggleMaximize()
+          }}
+          type="button"
+        >
+          {isMaximized ? (
+            <Copy className="h-4 w-4" />
+          ) : (
+            <span
+              aria-hidden="true"
+              className="h-3 w-3 border border-current"
+            />
+          )}
         </button>
         <button
           aria-label="Close"
