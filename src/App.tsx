@@ -10,6 +10,7 @@ import { AppTitleBar } from './components/AppTitleBar'
 import { CodecSelect } from './components/CodecSelect'
 import { ExportProgress } from './components/ExportProgress'
 import { ExportResult } from './components/ExportResult'
+import { FpsSelect } from './components/FpsSelect'
 import { TargetSizeInput } from './components/TargetSizeInput'
 import { TwoPassToggle } from './components/TwoPassToggle'
 import { VideoDropzone } from './components/VideoDropzone'
@@ -32,6 +33,7 @@ function App() {
     dismissMessage,
     exportKind,
     exportResult,
+    fps,
     isCancelling,
     isCompressing,
     isSelectingVideo,
@@ -45,6 +47,7 @@ function App() {
     setClipEnd,
     setClipStart,
     setCodec,
+    setFps,
     setTargetSizeMB,
     setUseTwoPass,
     showPreviewError,
@@ -69,9 +72,13 @@ function App() {
     : false
   const selectedClipDuration = clipEnd - clipStart
   const isTrimRangeInvalid = selectedClipDuration < 1
+  const isFpsInvalid =
+    fps !== 'native' &&
+    (!Number.isFinite(videoInfo?.fps) || fps > Number(videoInfo?.fps))
   const isCompressDisabled =
     !videoInfo ||
     isTargetSizeInvalid ||
+    isFpsInvalid ||
     isTrimRangeInvalid ||
     (isVideoOperationActive && !isCompressing)
   const isTrimDisabled =
@@ -212,10 +219,17 @@ function App() {
 
                 <div className="flex flex-col gap-3">
                   <CodecSelect codec={codec} onCodecChange={setCodec} />
-                  <TwoPassToggle
-                    checked={useTwoPass}
-                    onCheckedChange={setUseTwoPass}
-                  />
+                  <div className="grid grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] items-end gap-2">
+                    <FpsSelect
+                      fps={fps}
+                      sourceFps={videoInfo.fps}
+                      onFpsChange={setFps}
+                    />
+                    <TwoPassToggle
+                      checked={useTwoPass}
+                      onCheckedChange={setUseTwoPass}
+                    />
+                  </div>
                   <TargetSizeInput
                     sourceSizeMB={videoInfo.sizeMB}
                     value={targetSizeMB}

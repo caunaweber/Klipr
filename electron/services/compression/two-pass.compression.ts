@@ -26,6 +26,7 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
         width,
         height,
         codec,
+        fps,
         startTime,
         endTime
     } = options
@@ -54,9 +55,15 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
 
     const resolution = calculateResolution(width, height, bitrateKbps)
 
-    const outputPath = buildOutputPath(filePath, codec, targetSizeMB, true)
+    const outputPath = buildOutputPath(filePath, codec, targetSizeMB, true, fps)
 
     const encoder = codec === 'h265' ? 'libx265' : 'libx264'
+    const videoFilter = fps === 'native'
+        ? `scale=${resolution.width}:${resolution.height}`
+        : `scale=${resolution.width}:${resolution.height},fps=${fps}`
+    const firstPassFilterArgs = fps === 'native'
+        ? []
+        : ['-vf', videoFilter]
 
     const parsedFile = path.parse(filePath)
     const passLogFile = path.join(
@@ -91,6 +98,8 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
 
             '-b:v',
             `${bitrateKbps}k`,
+
+            ...firstPassFilterArgs,
 
             '-pass',
             '1',
@@ -218,7 +227,7 @@ export async function twoPassCompression(options: CompressionOptions): Promise<s
             `${audioBitrateKbps}k`,
 
             '-vf',
-            `scale=${resolution.width}:${resolution.height}`,
+            videoFilter,
 
             '-progress',
             'pipe:1',

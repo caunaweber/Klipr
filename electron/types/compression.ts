@@ -2,11 +2,18 @@ export type CompressionCodec =
   | 'h264'
   | 'h265'
 
+export type CompressionFps =
+  | 'native'
+  | 30
+  | 60
+  | 120
+
 export interface CompressionRequest {
   videoId: string
   targetSizeMB: number
   useTwoPass: boolean
   codec: CompressionCodec
+  fps: CompressionFps
   startTime?: number
   endTime?: number
 }
@@ -28,6 +35,7 @@ export interface CompressionOptions {
   endTime?: number
 
   codec: CompressionCodec
+  fps: CompressionFps
 
   onProgress: (progress: number) => void
 }

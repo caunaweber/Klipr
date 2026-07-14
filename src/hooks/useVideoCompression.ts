@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { CompressionCodec, CompressionResult } from '../../electron/types/compression'
+import type { CompressionCodec, CompressionFps, CompressionResult } from '../../electron/types/compression'
 import type { TrimResult } from '../../electron/types/trim'
 import type { VideoInfo } from '../../electron/types/video'
 
@@ -45,6 +45,10 @@ function getCompressionErrorMessage(error: unknown) {
 
   if (errorText.includes('Invalid clip duration')) {
     return 'The selected trim range is invalid. Reset trim and try again.'
+  }
+
+  if (errorText.includes('fps must be smaller than or equal to the source fps')) {
+    return 'Selected FPS cannot be higher than the source video FPS.'
   }
 
   if (
@@ -100,6 +104,7 @@ export function useVideoCompression() {
   const [isSelectingVideo, setIsSelectingVideo] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
   const [codec, setCodec] = useState<CompressionCodec>('h265')
+  const [fps, setFps] = useState<CompressionFps>('native')
   const [clipStart, setClipStart] = useState(0)
   const [clipEnd, setClipEnd] = useState(0)
   const [status, setStatus] = useState<VideoOperationStatus>('idle')
@@ -118,6 +123,7 @@ export function useVideoCompression() {
     setClipStart(0)
     setClipEnd(info.duration)
     setProgress(0)
+    setFps('native')
     setExportResult(null)
     setExportKind(null)
     setStatus('idle')
@@ -138,6 +144,7 @@ export function useVideoCompression() {
     setClipStart(0)
     setClipEnd(0)
     setProgress(0)
+    setFps('native')
     setExportResult(null)
     setExportKind(null)
     setStatus('idle')
@@ -239,6 +246,7 @@ export function useVideoCompression() {
         targetSizeMB: Number(targetSizeMB),
         useTwoPass,
         codec,
+        fps,
         startTime: clipStart,
         endTime: clipEnd,
       })
@@ -422,6 +430,7 @@ export function useVideoCompression() {
     clipEnd,
     clipStart,
     codec,
+    fps,
     cancelVideoOperation,
     clearVideo,
     compressVideo,
@@ -441,6 +450,7 @@ export function useVideoCompression() {
     setClipEnd,
     setClipStart,
     setCodec,
+    setFps,
     setTargetSizeMB,
     setUseTwoPass,
     showPreviewError,

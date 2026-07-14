@@ -29,6 +29,8 @@ interface FfprobeStream {
   codec_name?: string
   width?: number
   height?: number
+  avg_frame_rate?: string
+  r_frame_rate?: string
 }
 
 interface FfprobeData {
@@ -153,8 +155,35 @@ export async function getVideoInfo(filePath: string, id: string): Promise<VideoI
     duration: Number(data.format.duration),
     width: videoStream.width,
     height: videoStream.height,
+    fps: parseFrameRate(
+      videoStream.avg_frame_rate ||
+      videoStream.r_frame_rate
+    ),
     codec: videoStream.codec_name
   }
+}
+
+function parseFrameRate(
+  frameRate: string | undefined
+) {
+  if (!frameRate) {
+    return 0
+  }
+
+  const [numeratorText, denominatorText] = frameRate.split('/')
+  const numerator = Number(numeratorText)
+  const denominator = denominatorText ? Number(denominatorText) : 1
+
+  if (
+    !Number.isFinite(numerator) ||
+    !Number.isFinite(denominator) ||
+    numerator <= 0 ||
+    denominator <= 0
+  ) {
+    return 0
+  }
+
+  return Number((numerator / denominator).toFixed(2))
 }
 
 export async function compressVideo(
@@ -181,7 +210,9 @@ export async function compressVideo(
     startTime: resolvedStartTime,
     endTime: resolvedEndTime,
     width: videoInfo.width,
-    height: videoInfo.height
+    height: videoInfo.height,
+    sourceFps: videoInfo.fps,
+    fps: request.fps,
   })
 
   const outputPath = request.useTwoPass
@@ -192,6 +223,7 @@ export async function compressVideo(
       width: videoInfo.width,
       height: videoInfo.height,
       codec: request.codec,
+      fps: request.fps,
       onProgress,
       startTime: resolvedStartTime,
       endTime: resolvedEndTime
@@ -203,6 +235,7 @@ export async function compressVideo(
       width: videoInfo.width,
       height: videoInfo.height,
       codec: request.codec,
+      fps: request.fps,
       onProgress,
       startTime: resolvedStartTime,
       endTime: resolvedEndTime

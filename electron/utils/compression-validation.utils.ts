@@ -1,4 +1,4 @@
-import type { CompressionCodec } from '../types/compression'
+import type { CompressionCodec, CompressionFps } from '../types/compression'
 
 export interface CompressionValidationInput {
   codec: CompressionCodec
@@ -9,6 +9,8 @@ export interface CompressionValidationInput {
   endTime: number
   width: number
   height: number
+  sourceFps: number
+  fps: CompressionFps
 }
 
 export function validateCompressionParameters(
@@ -60,6 +62,25 @@ export function validateCompressionParameters(
     errors.push('height must be greater than 0')
   }
 
+  if (!isSupportedCompressionFps(input.fps)) {
+    errors.push('fps must be native, 30, 60, or 120')
+  }
+
+  if (
+    input.fps !== 'native' &&
+    (!Number.isFinite(input.sourceFps) || input.sourceFps <= 0)
+  ) {
+    errors.push('sourceFps must be greater than 0 when fps is not native')
+  }
+
+  if (
+    input.fps !== 'native' &&
+    Number.isFinite(input.sourceFps) &&
+    input.fps > input.sourceFps
+  ) {
+    errors.push('fps must be smaller than or equal to the source fps')
+  }
+
   if (errors.length > 0) {
     throw new Error(
       `Invalid compression parameters: ${errors.join('; ')}`
@@ -71,4 +92,10 @@ function isSupportedCompressionCodec(
   codec: CompressionCodec
 ) {
   return codec === 'h264' || codec === 'h265'
+}
+
+function isSupportedCompressionFps(
+  fps: CompressionFps
+) {
+  return fps === 'native' || fps === 30 || fps === 60 || fps === 120
 }
