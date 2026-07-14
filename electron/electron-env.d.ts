@@ -30,11 +30,17 @@ interface Window {
 
     selectDroppedVideo: (file: File) => Promise<VideoInfo>
 
+    consumePendingOpenVideo: () => Promise<VideoInfo | null>
+
     compressVideo: (
       request: import('./types/compression').CompressionRequest
     ) => Promise<import('./types/compression').CompressionResult>
 
     onProgress: (callback: (progress: number) => void) => () => void
+
+    onOpenedFromSystem: (
+      callback: (payload: import('./types/video').OpenedVideoPayload) => void
+    ) => () => void
 
     cancelVideoOperation: () => Promise<void>
 

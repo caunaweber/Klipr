@@ -22,7 +22,7 @@ const require = createRequire(import.meta.url)
 const ffprobe = require('ffprobe-static')
 const ffprobePath = resolvePackagedBinaryPath(ffprobe.path)
 
-const SUPPORTED_VIDEO_EXTENSIONS = new Set(['.mp4', '.avi', '.mkv'])
+const SUPPORTED_VIDEO_EXTENSIONS = new Set(['.mp4', '.avi', '.mkv', '.mov', '.webm'])
 
 interface FfprobeStream {
   codec_type?: string
@@ -48,24 +48,25 @@ function assertSupportedVideoExtension(
   }
 }
 
-function resolveDroppedVideoPath(
-  filePath: unknown
+function resolveLocalVideoPath(
+  filePath: unknown,
+  sourceLabel: string
 ) {
   if (
     typeof filePath !== 'string' ||
     filePath.trim().length === 0
   ) {
-    throw new Error('Dropped video path is invalid')
+    throw new Error(`${sourceLabel} video path is invalid`)
   }
 
   if (!path.isAbsolute(filePath)) {
-    throw new Error('Dropped video path must be absolute')
+    throw new Error(`${sourceLabel} video path must be absolute`)
   }
 
   const linkStats = fs.lstatSync(filePath)
 
   if (linkStats.isSymbolicLink()) {
-    throw new Error('Dropped video cannot be a symbolic link')
+    throw new Error(`${sourceLabel} video cannot be a symbolic link`)
   }
 
   const resolvedPath = fs.realpathSync(filePath)
@@ -75,7 +76,7 @@ function resolveDroppedVideoPath(
   const stats = fs.statSync(resolvedPath)
 
   if (!stats.isFile()) {
-    throw new Error('Dropped item is not a file')
+    throw new Error(`${sourceLabel} item is not a file`)
   }
 
   return resolvedPath
@@ -85,7 +86,7 @@ export async function selectVideo(): Promise<VideoInfo | null> {
   const result = await dialog.showOpenDialog({
     properties: ['openFile'],
     filters: [
-      { name: 'Videos', extensions: ['mp4', 'avi', 'mkv'] }
+      { name: 'Videos', extensions: ['mp4', 'avi', 'mkv', 'mov', 'webm'] }
     ]
   })
   if (result.canceled) {
@@ -101,7 +102,14 @@ export async function selectVideo(): Promise<VideoInfo | null> {
 }
 
 export async function selectDroppedVideo(filePath: unknown): Promise<VideoInfo> {
-  const resolvedPath = resolveDroppedVideoPath(filePath)
+  return selectLocalVideoPath(filePath, 'Dropped')
+}
+
+export async function selectLocalVideoPath(
+  filePath: unknown,
+  sourceLabel = 'Selected'
+): Promise<VideoInfo> {
+  const resolvedPath = resolveLocalVideoPath(filePath, sourceLabel)
 
   const id = registerSelectedVideo(resolvedPath)
 

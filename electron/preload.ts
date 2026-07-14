@@ -1,6 +1,6 @@
 import { ipcRenderer, contextBridge, webUtils } from 'electron'
 import { CompressionRequest, CompressionResult } from './types/compression'
-import { VideoInfo } from './types/video'
+import { OpenedVideoPayload, VideoInfo } from './types/video'
 import { TrimRequest, TrimResult } from './types/trim'
 
 
@@ -13,6 +13,9 @@ contextBridge.exposeInMainWorld('videoCompressor', {
       'select-dropped-video',
       webUtils.getPathForFile(file)
     ),
+
+  consumePendingOpenVideo: (): Promise<VideoInfo | null> =>
+    ipcRenderer.invoke('consume-pending-open-video'),
 
   compressVideo: (request: CompressionRequest): Promise<CompressionResult> =>
     ipcRenderer.invoke('compress-video', request),
@@ -33,6 +36,19 @@ contextBridge.exposeInMainWorld('videoCompressor', {
     )
     return () => {
       ipcRenderer.removeListener('video-operation-progress', listener)
+    }
+  },
+
+  onOpenedFromSystem: (callback: (payload: OpenedVideoPayload) => void) => {
+    const listener = (_: Electron.IpcRendererEvent, payload: OpenedVideoPayload) => {
+      callback(payload)
+    }
+    ipcRenderer.on(
+      'video:opened-from-system',
+      listener
+    )
+    return () => {
+      ipcRenderer.removeListener('video:opened-from-system', listener)
     }
   },
 

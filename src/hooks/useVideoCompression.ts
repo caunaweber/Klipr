@@ -14,7 +14,7 @@ type VideoOperationStatus =
   | 'cancelled'
 type ExportKind = 'compression' | 'trim'
 type ExportResult = CompressionResult | TrimResult
-const SUPPORTED_VIDEO_EXTENSIONS = ['.mp4', '.avi', '.mkv']
+const SUPPORTED_VIDEO_EXTENSIONS = ['.mp4', '.avi', '.mkv', '.mov', '.webm']
 
 function getErrorText(error: unknown) {
   return error instanceof Error ? error.message : String(error)
@@ -108,11 +108,12 @@ export function useVideoCompression() {
     useState<ExportResult | null>(null)
   const [exportKind, setExportKind] = useState<ExportKind | null>(null)
   const cancelRequestedRef = useRef(false)
+  const isVideoOperationActiveRef = useRef(false)
 
   const isVideoOperationActive =
     isCompressing || isTrimming || isCancelling
 
-  const applySelectedVideo = (info: VideoInfo) => {
+  const applySelectedVideo = useCallback((info: VideoInfo) => {
     setVideoInfo(info)
     setClipStart(0)
     setClipEnd(info.duration)
@@ -121,7 +122,16 @@ export function useVideoCompression() {
     setExportKind(null)
     setStatus('idle')
     setMessage(null)
-  }
+  }, [])
+
+  const applyOpenVideoError = useCallback(() => {
+    setStatus('error')
+    setMessage('Could not load this video. Try another local video file.')
+  }, [])
+
+  const applyOpenVideoBlocked = useCallback(() => {
+    setMessage('Finish the current video operation before opening another video.')
+  }, [])
 
   const clearVideo = () => {
     setVideoInfo(null)
@@ -186,7 +196,7 @@ export function useVideoCompression() {
     } catch (error) {
       console.error(error)
       setStatus('error')
-      setMessage('Drop a local MP4, AVI, or MKV video file.')
+      setMessage('Drop a video file.')
     } finally {
       setIsSelectingVideo(false)
     }
@@ -337,6 +347,76 @@ export function useVideoCompression() {
     const unsubscribe = window.videoCompressor.onProgress(setProgress)
     return unsubscribe
   }, [])
+
+  useEffect(() => {
+    isVideoOperationActiveRef.current = isVideoOperationActive
+  }, [isVideoOperationActive])
+
+  useEffect(() => {
+    let isMounted = true
+
+    const loadPendingOpenVideo = async () => {
+      setIsSelectingVideo(true)
+      setStatus('loading-video')
+      setMessage(null)
+
+      try {
+        const info = await window.videoCompressor.consumePendingOpenVideo()
+
+        if (!isMounted) {
+          return
+        }
+
+        if (info) {
+          applySelectedVideo(info)
+        } else {
+          setStatus('idle')
+        }
+      } catch (error) {
+        console.error(error)
+
+        if (isMounted) {
+          applyOpenVideoError()
+        }
+      } finally {
+        if (isMounted) {
+          setIsSelectingVideo(false)
+        }
+      }
+    }
+
+    const unsubscribe = window.videoCompressor.onOpenedFromSystem((payload) => {
+      if (isVideoOperationActiveRef.current) {
+        applyOpenVideoBlocked()
+        return
+      }
+
+      if (payload.ok) {
+        applySelectedVideo(payload.videoInfo)
+        return
+      }
+
+      console.error(payload.error)
+
+      if (payload.error.includes('A video operation is already active')) {
+        applyOpenVideoBlocked()
+        return
+      }
+
+      applyOpenVideoError()
+    })
+
+    void loadPendingOpenVideo()
+
+    return () => {
+      isMounted = false
+      unsubscribe()
+    }
+  }, [
+    applyOpenVideoBlocked,
+    applyOpenVideoError,
+    applySelectedVideo,
+  ])
 
   return {
     clipEnd,

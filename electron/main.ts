@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, shell, Notification } from 'electron'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
-import { selectVideo, selectDroppedVideo, compressVideo, trimSelectedVideo } from './services/video.services'
+import { selectVideo, selectDroppedVideo, selectLocalVideoPath, compressVideo, trimSelectedVideo } from './services/video.services'
 import { CompressionRequest } from './types/compression'
 import { TrimRequest } from './types/trim'
 import { protocol } from 'electron'
@@ -35,6 +35,9 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 
 let win: BrowserWindow | null
 let isShuttingDown = false
 let isVideoOperationActive = false
+let pendingVideoOpenPath: string | null = null
+
+const SUPPORTED_OPEN_WITH_EXTENSIONS = new Set(['.mp4', '.mkv', '.mov', '.webm', '.avi'])
 
 interface ParsedRange {
   start: number
@@ -177,7 +180,80 @@ function getVideoContentType(filePath: string) {
     return 'video/x-msvideo'
   }
 
+  if (extension === '.mov') {
+    return 'video/quicktime'
+  }
+
+  if (extension === '.webm') {
+    return 'video/webm'
+  }
+
   return 'application/octet-stream'
+}
+
+function getVideoPathFromArgv(argv: string[]) {
+  for (const argument of argv) {
+    const normalizedArgument = argument.trim()
+
+    if (
+      path.isAbsolute(normalizedArgument) &&
+      SUPPORTED_OPEN_WITH_EXTENSIONS.has(path.extname(normalizedArgument).toLowerCase())
+    ) {
+      return normalizedArgument
+    }
+  }
+
+  return null
+}
+
+async function sendVideoOpenPathToWindow(filePath: string) {
+  if (isVideoOperationActive) {
+    if (
+      win &&
+      !win.isDestroyed()
+    ) {
+      win.webContents.send(
+        'video:opened-from-system',
+        {
+          ok: false,
+          error: 'A video operation is already active',
+        }
+      )
+    }
+
+    return
+  }
+
+  if (
+    !win ||
+    win.isDestroyed() ||
+    win.webContents.isLoading()
+  ) {
+    pendingVideoOpenPath = filePath
+    return
+  }
+
+  try {
+    const videoInfo = await selectLocalVideoPath(filePath, 'Opened')
+
+    win.webContents.send(
+      'video:opened-from-system',
+      {
+        ok: true,
+        videoInfo,
+      }
+    )
+  } catch (error) {
+    console.error('Open with video error:', error)
+
+    win.webContents.send(
+      'video:opened-from-system',
+      {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      }
+    )
+  }
 }
 
 function getVideoIdFromRequestUrl(requestUrl: string) {
@@ -233,6 +309,31 @@ function createWindow() {
   }
 }
 
+const hasSingleInstanceLock = app.requestSingleInstanceLock()
+
+if (!hasSingleInstanceLock) {
+  app.quit()
+} else {
+  pendingVideoOpenPath = getVideoPathFromArgv(process.argv)
+
+  app.on('second-instance', (_event, argv) => {
+    const filePath = getVideoPathFromArgv(argv)
+
+    if (win && !win.isDestroyed()) {
+      if (win.isMinimized()) {
+        win.restore()
+      }
+
+      win.show()
+      win.focus()
+    }
+
+    if (filePath) {
+      void sendVideoOpenPathToWindow(filePath)
+    }
+  })
+}
+
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
@@ -265,6 +366,22 @@ ipcMain.handle('select-video', selectVideo)
 ipcMain.handle('select-dropped-video', async (_, filePath: unknown) =>
   selectDroppedVideo(filePath)
 )
+
+ipcMain.handle('consume-pending-open-video', async () => {
+  if (!pendingVideoOpenPath) {
+    return null
+  }
+
+  if (isVideoOperationActive) {
+    pendingVideoOpenPath = null
+    throw new Error('A video operation is already active')
+  }
+
+  const filePath = pendingVideoOpenPath
+  pendingVideoOpenPath = null
+
+  return selectLocalVideoPath(filePath, 'Opened')
+})
 
 ipcMain.handle('compress-video', async (_, request: CompressionRequest) => {
 
@@ -382,128 +499,130 @@ if (process.platform === 'win32') {
   app.setAppUserModelId('com.caunaweber.klipr')
 }
 
-app.whenReady().then(() => {
+if (hasSingleInstanceLock) {
+  app.whenReady().then(() => {
 
-  protocol.handle(
-    'video',
-    async (request) => {
+    protocol.handle(
+      'video',
+      async (request) => {
 
-      try {
+        try {
 
-        const videoId =
-          getVideoIdFromRequestUrl(
-            request.url
-          )
+          const videoId =
+            getVideoIdFromRequestUrl(
+              request.url
+            )
 
-        const filePath =
-          getSelectedVideoPath(videoId)
+          const filePath =
+            getSelectedVideoPath(videoId)
 
-        if (!filePath) {
-          return new Response(
-            'Video not authorized',
-            {
-              status: 403
-            }
-          )
-        }
+          if (!filePath) {
+            return new Response(
+              'Video not authorized',
+              {
+                status: 403
+              }
+            )
+          }
 
-        const stat =
-          await fs.promises.stat(
-            filePath
-          )
+          const stat =
+            await fs.promises.stat(
+              filePath
+            )
 
-        const range =
-          request.headers.get(
-            'range'
-          )
+          const range =
+            request.headers.get(
+              'range'
+            )
 
-        const contentType =
-          getVideoContentType(filePath)
+          const contentType =
+            getVideoContentType(filePath)
 
-        if (!range) {
+          if (!range) {
+
+            const stream =
+              createVideoStreamBody(
+                filePath
+              )
+
+            return new Response(
+              stream,
+              {
+                headers: {
+                  'Content-Type':
+                    contentType,
+                  'Content-Length':
+                    String(stat.size),
+                  'Accept-Ranges':
+                    'bytes'
+                }
+              }
+            )
+          }
+
+          const parsedRange =
+            parseRangeHeader(
+              range,
+              stat.size
+            )
+
+          if (!parsedRange) {
+            return new Response(
+              'Invalid range',
+              {
+                status: 416
+              }
+            )
+          }
+
+          const { start, end } = parsedRange
+
+          const chunkSize =
+            end - start + 1
 
           const stream =
             createVideoStreamBody(
-              filePath
+              filePath,
+              {
+                start,
+                end
+              }
             )
 
           return new Response(
             stream,
             {
+              status: 206,
               headers: {
                 'Content-Type':
                   contentType,
                 'Content-Length':
-                  String(stat.size),
+                  String(chunkSize),
+                'Content-Range':
+                  `bytes ${start}-${end}/${stat.size}`,
                 'Accept-Ranges':
                   'bytes'
               }
             }
           )
-        }
 
-        const parsedRange =
-          parseRangeHeader(
-            range,
-            stat.size
+        } catch (error) {
+
+          console.error(
+            'Video protocol error:',
+            error
           )
 
-        if (!parsedRange) {
           return new Response(
-            'Invalid range',
+            'File not found',
             {
-              status: 416
+              status: 404
             }
           )
         }
-
-        const { start, end } = parsedRange
-
-        const chunkSize =
-          end - start + 1
-
-        const stream =
-          createVideoStreamBody(
-            filePath,
-            {
-              start,
-              end
-            }
-          )
-
-        return new Response(
-          stream,
-          {
-            status: 206,
-            headers: {
-              'Content-Type':
-                contentType,
-              'Content-Length':
-                String(chunkSize),
-              'Content-Range':
-                `bytes ${start}-${end}/${stat.size}`,
-              'Accept-Ranges':
-                'bytes'
-            }
-          }
-        )
-
-      } catch (error) {
-
-        console.error(
-          'Video protocol error:',
-          error
-        )
-
-        return new Response(
-          'File not found',
-          {
-            status: 404
-          }
-        )
       }
-    }
-  )
+    )
 
-  createWindow()
-})
+    createWindow()
+  })
+}

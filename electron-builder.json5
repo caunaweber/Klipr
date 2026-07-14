@@ -26,6 +26,20 @@
   },
   "win": {
     "icon": "build/icon.ico",
+    "fileAssociations": [
+      {
+        "ext": [
+          "mp4",
+          "mkv",
+          "mov",
+          "webm",
+          "avi"
+        ],
+        "name": "Video",
+        "description": "Video file",
+        "role": "Viewer"
+      }
+    ],
     "target": [
       {
         "target": "nsis",

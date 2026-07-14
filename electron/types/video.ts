@@ -8,3 +8,13 @@ export interface VideoInfo {
   height: number
   codec: string
 }
+
+export type OpenedVideoPayload =
+  | {
+      ok: true
+      videoInfo: VideoInfo
+    }
+  | {
+      ok: false
+      error: string
+    }
