@@ -42,6 +42,16 @@ function getOptionIsDisabled(
   )
 }
 
+function formatSourceFps(sourceFps: number) {
+  if (!Number.isFinite(sourceFps) || sourceFps <= 0) {
+    return null
+  }
+
+  return Number.isInteger(sourceFps)
+    ? sourceFps.toString()
+    : sourceFps.toFixed(2)
+}
+
 export function FpsSelect({
   fps,
   sourceFps,
@@ -51,9 +61,17 @@ export function FpsSelect({
   const rootRef = useRef<HTMLDivElement>(null)
   const selectedFps =
     FPS_OPTIONS.find((option) => option.value === fps) ?? FPS_OPTIONS[0]
+  const formattedSourceFps = formatSourceFps(sourceFps)
+  const nativeLabel = formattedSourceFps
+    ? `Native ${formattedSourceFps}`
+    : 'Native'
+  const selectedLabel =
+    selectedFps.value === 'native' ? nativeLabel : selectedFps.label
   const tooltip =
     fps === 'native'
-      ? 'Keeps the original frame rate'
+      ? formattedSourceFps
+        ? `Keeps the original frame rate (${formattedSourceFps} FPS)`
+        : 'Keeps the original frame rate'
       : `Exports at ${fps} FPS`
 
   useEffect(() => {
@@ -103,7 +121,7 @@ export function FpsSelect({
           role="combobox"
           type="button"
         >
-          <span className="min-w-0 truncate">{selectedFps.label}</span>
+          <span className="min-w-0 truncate">{selectedLabel}</span>
           <ChevronDown
             className={cn(
               'h-4 w-4 shrink-0 text-muted-foreground transition-transform',
@@ -115,12 +133,14 @@ export function FpsSelect({
 
       {isOpen && (
         <div
-          className="absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-md border border-border/90 bg-card/95 p-1 shadow-soft backdrop-blur"
+          className="absolute left-0 right-0 top-full z-40 mt-2 origin-top overflow-hidden rounded-md border border-border/90 bg-card/95 p-1 shadow-soft backdrop-blur animate-in fade-in-0 zoom-in-95 slide-in-from-top-1 duration-150 ease-out motion-reduce:animate-none"
           role="listbox"
         >
           {FPS_OPTIONS.map((option) => {
             const isSelected = option.value === fps
             const isDisabled = getOptionIsDisabled(option.value, sourceFps)
+            const optionLabel =
+              option.value === 'native' ? nativeLabel : option.label
             const optionButton = (
               <button
                 aria-disabled={isDisabled}
@@ -149,7 +169,7 @@ export function FpsSelect({
                 type="button"
               >
                 <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate font-medium">{option.label}</span>
+                  <span className="truncate font-medium">{optionLabel}</span>
                 </span>
                 <Check
                   className={cn(

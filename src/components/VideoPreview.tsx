@@ -1,7 +1,6 @@
 import type { RefObject } from 'react'
-import { Clock3, HardDrive, Maximize2, Trash2 } from 'lucide-react'
+import { Gauge, HardDrive, Maximize2, Trash2 } from 'lucide-react'
 import type { VideoInfo } from '../../electron/types/video'
-import { formatDuration } from '../utils/formatDuration'
 import { PlayerControls } from './PlayerControls'
 import { Tooltip } from './Tooltip'
 import { TrimRange } from './TrimRange'
@@ -67,8 +66,11 @@ export function VideoPreview({
               {videoInfo.sizeMB} MB
             </span>
             <span className="inline-flex h-5 items-center gap-1 rounded border border-border/60 bg-background/25 px-1.5">
-              <Clock3 className="h-3 w-3 text-primary/90" />
-              {formatDuration(videoInfo.duration)}
+              <Gauge className="h-3 w-3 text-primary/90" />
+              {Number.isInteger(videoInfo.fps)
+                ? videoInfo.fps
+                : videoInfo.fps.toFixed(2)}{' '}
+              FPS
             </span>
             <span className="inline-flex h-5 items-center gap-1 rounded border border-border/60 bg-background/25 px-1.5">
               <Maximize2 className="h-3 w-3 text-primary/90" />

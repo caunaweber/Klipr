@@ -121,13 +121,10 @@ export function Tooltip({
         <span
           ref={tooltipRef}
           className={cn(
-            'pointer-events-none fixed z-[100] w-max max-w-56 rounded-md border px-2.5 py-1.5 text-xs font-medium leading-5 opacity-100 shadow-soft',
+            'pointer-events-none fixed z-[100] w-max max-w-56',
             position.placement === 'top'
               ? '-translate-x-1/2 -translate-y-full'
               : '-translate-x-1/2',
-            tone === 'error'
-              ? 'border-destructive/60 bg-destructive text-destructive-foreground'
-              : 'border-border bg-secondary text-secondary-foreground',
           )}
           role="tooltip"
           style={{
@@ -135,7 +132,19 @@ export function Tooltip({
             top: position.top,
           }}
         >
-          {content}
+          <span
+            className={cn(
+              'block w-max max-w-56 rounded-md border px-2.5 py-1.5 text-xs font-medium leading-5 shadow-soft animate-in fade-in-0 zoom-in-95 duration-150 ease-out motion-reduce:animate-none',
+              position.placement === 'top'
+                ? 'origin-bottom slide-in-from-bottom-1'
+                : 'origin-top slide-in-from-top-1',
+              tone === 'error'
+                ? 'border-destructive/60 bg-destructive text-destructive-foreground'
+                : 'border-border bg-secondary text-secondary-foreground',
+            )}
+          >
+            {content}
+          </span>
         </span>,
         document.body
       )}

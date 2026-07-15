@@ -110,7 +110,7 @@ export function CodecSelect({ codec, onCodecChange }: CodecSelectProps) {
 
       {isOpen && (
         <div
-          className="absolute left-0 right-0 top-full z-40 mt-2 overflow-hidden rounded-md border border-border/90 bg-card/95 p-1 shadow-soft backdrop-blur"
+          className="absolute left-0 right-0 top-full z-40 mt-2 origin-top overflow-hidden rounded-md border border-border/90 bg-card/95 p-1 shadow-soft backdrop-blur animate-in fade-in-0 zoom-in-95 slide-in-from-top-1 duration-150 ease-out motion-reduce:animate-none"
           role="listbox"
         >
           {CODEC_OPTIONS.map((option) => {
