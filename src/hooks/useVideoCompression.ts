@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { CompressionCodec, CompressionFps, CompressionResult } from '../../electron/types/compression'
+import type { CompressionFps, CompressionResult } from '../../electron/types/compression'
+import type { EncoderCapability, EncoderId } from '../../electron/types/encoder'
 import type { TrimResult } from '../../electron/types/trim'
 import type { VideoInfo } from '../../electron/types/video'
+import { CPU_ENCODER_FALLBACK, DEFAULT_ENCODER_ID, getAvailableEncoders, resolveSelectedEncoder } from '../utils/encoderCapabilities'
 
 type VideoOperationStatus =
   | 'idle'
@@ -49,6 +51,13 @@ function getCompressionErrorMessage(error: unknown) {
 
   if (errorText.includes('fps must be smaller than or equal to the source fps')) {
     return 'Selected FPS cannot be higher than the source video FPS.'
+  }
+
+  if (
+    errorText.includes('Invalid encoder selection') ||
+    errorText.includes('Selected encoder is not available')
+  ) {
+    return 'The selected encoder is no longer available. Try a CPU encoder.'
   }
 
   if (errorText.includes('FFmpeg exited')) {
@@ -99,20 +108,22 @@ export function useVideoCompression() {
   const [isTrimming, setIsTrimming] = useState(false)
   const [isSelectingVideo, setIsSelectingVideo] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
-  const [codec, setCodec] = useState<CompressionCodec>('h265')
+  const [availableEncoders, setAvailableEncoders] = useState<EncoderCapability[]>([...CPU_ENCODER_FALLBACK])
+  const [selectedEncoderId, setSelectedEncoderId] = useState<EncoderId>(DEFAULT_ENCODER_ID)
+  const [isLoadingEncoders, setIsLoadingEncoders] = useState(true)
   const [fps, setFps] = useState<CompressionFps>('native')
   const [clipStart, setClipStart] = useState(0)
   const [clipEnd, setClipEnd] = useState(0)
   const [status, setStatus] = useState<VideoOperationStatus>('idle')
   const [message, setMessage] = useState<string | null>(null)
-  const [exportResult, setExportResult] =
-    useState<ExportResult | null>(null)
+  const [exportResult, setExportResult] = useState<ExportResult | null>(null)
   const [exportKind, setExportKind] = useState<ExportKind | null>(null)
   const cancelRequestedRef = useRef(false)
   const isVideoOperationActiveRef = useRef(false)
 
-  const isVideoOperationActive =
-    isCompressing || isTrimming || isCancelling
+  const isVideoOperationActive = isCompressing || isTrimming || isCancelling
+  const selectedEncoder = resolveSelectedEncoder(availableEncoders, selectedEncoderId)
+  const isGpuEncoderSelected = selectedEncoder.technology !== 'cpu'
 
   const applySelectedVideo = useCallback((info: VideoInfo) => {
     setVideoInfo(info)
@@ -240,7 +251,7 @@ export function useVideoCompression() {
       const result = await window.videoCompressor.compressVideo({
         videoId: videoInfo.id,
         targetSizeMB: Number(targetSizeMB),
-        codec,
+        encoderId: selectedEncoder.id,
         fps,
         startTime: clipStart,
         endTime: clipEnd,
@@ -352,6 +363,43 @@ export function useVideoCompression() {
   }, [])
 
   useEffect(() => {
+    let isMounted = true
+
+    const loadEncoderCapabilities = async () => {
+      try {
+        const capabilities = await window.videoCompressor.getEncoderCapabilities()
+
+        if (!isMounted) {
+          return
+        }
+
+        const encoders = getAvailableEncoders(capabilities)
+        setAvailableEncoders(encoders)
+        setSelectedEncoderId((currentEncoderId) =>
+          resolveSelectedEncoder(encoders, currentEncoderId).id
+        )
+      } catch (error) {
+        console.error('Could not load encoder capabilities:', error)
+
+        if (isMounted) {
+          setAvailableEncoders([...CPU_ENCODER_FALLBACK])
+          setSelectedEncoderId(DEFAULT_ENCODER_ID)
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingEncoders(false)
+        }
+      }
+    }
+
+    void loadEncoderCapabilities()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  useEffect(() => {
     isVideoOperationActiveRef.current = isVideoOperationActive
   }, [isVideoOperationActive])
 
@@ -424,7 +472,7 @@ export function useVideoCompression() {
   return {
     clipEnd,
     clipStart,
-    codec,
+    availableEncoders,
     fps,
     cancelVideoOperation,
     clearVideo,
@@ -434,6 +482,8 @@ export function useVideoCompression() {
     exportResult,
     isCancelling,
     isCompressing,
+    isGpuEncoderSelected,
+    isLoadingEncoders,
     isSelectingVideo,
     isTrimming,
     isVideoOperationActive,
@@ -444,7 +494,8 @@ export function useVideoCompression() {
     selectVideo,
     setClipEnd,
     setClipStart,
-    setCodec,
+    selectedEncoderId,
+    setSelectedEncoderId,
     setFps,
     setTargetSizeMB,
     showPreviewError,

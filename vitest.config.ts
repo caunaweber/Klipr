@@ -5,6 +5,7 @@ export default defineConfig({
     environment: 'node',
     include: [
       'electron/**/*.test.ts',
+      'src/**/*.test.ts',
     ],
   },
 })

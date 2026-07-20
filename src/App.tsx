@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import { AppToast } from './components/AppToast'
 import { AppTitleBar } from './components/AppTitleBar'
-import { CodecSelect } from './components/CodecSelect'
+import { EncoderSelect } from './components/EncoderSelect'
 import { ExportProgress } from './components/ExportProgress'
 import { ExportResult } from './components/ExportResult'
 import { FpsSelect } from './components/FpsSelect'
@@ -23,10 +23,10 @@ function App() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [isVideoLeaving, setIsVideoLeaving] = useState(false)
   const {
+    availableEncoders,
     cancelVideoOperation,
     clipEnd,
     clipStart,
-    codec,
     clearVideo,
     compressVideo,
     dismissMessage,
@@ -35,6 +35,8 @@ function App() {
     fps,
     isCancelling,
     isCompressing,
+    isGpuEncoderSelected,
+    isLoadingEncoders,
     isSelectingVideo,
     isTrimming,
     isVideoOperationActive,
@@ -43,9 +45,10 @@ function App() {
     progress,
     selectDroppedVideo,
     selectVideo,
+    selectedEncoderId,
     setClipEnd,
     setClipStart,
-    setCodec,
+    setSelectedEncoderId,
     setFps,
     setTargetSizeMB,
     showPreviewError,
@@ -77,6 +80,8 @@ function App() {
     isTargetSizeInvalid ||
     isFpsInvalid ||
     isTrimRangeInvalid ||
+    isLoadingEncoders ||
+    isGpuEncoderSelected ||
     (isVideoOperationActive && !isCompressing)
   const isTrimDisabled =
     !videoInfo ||
@@ -215,7 +220,18 @@ function App() {
                 </div>
 
                 <div className="flex flex-col gap-3">
-                  <CodecSelect codec={codec} onCodecChange={setCodec} />
+                  <EncoderSelect
+                    disabled={isVideoOperationActive}
+                    encoders={availableEncoders}
+                    isLoading={isLoadingEncoders}
+                    onEncoderChange={setSelectedEncoderId}
+                    selectedEncoderId={selectedEncoderId}
+                  />
+                  {isGpuEncoderSelected && (
+                    <p className="text-xs leading-5 text-amber-300/90">
+                      GPU compression will be enabled in the next implementation step.
+                    </p>
+                  )}
                   <FpsSelect
                     fps={fps}
                     sourceFps={videoInfo.fps}

@@ -6,6 +6,7 @@ import {
 import {
   getEncoderDefinition,
   getEncoderDefinitions,
+  isEncoderId,
   toEncoderCapability,
 } from './encoder.utils'
 
@@ -55,6 +56,19 @@ describe('encoder catalog', () => {
       codec: 'h265',
       ffmpegName: 'hevc_nvenc',
     })
+  })
+
+  it('validates encoder IDs at runtime', () => {
+    expect(isEncoderId('cpu-h264')).toBe(true)
+    expect(isEncoderId('h264_nvenc')).toBe(false)
+    expect(isEncoderId('arbitrary-encoder')).toBe(false)
+    expect(isEncoderId(null)).toBe(false)
+  })
+
+  it('rejects values outside the fixed encoder catalog', () => {
+    expect(() =>
+      getEncoderDefinition('h264_nvenc')
+    ).toThrow('Invalid encoder selection')
   })
 
   it('removes the internal FFmpeg name from public capabilities', () => {

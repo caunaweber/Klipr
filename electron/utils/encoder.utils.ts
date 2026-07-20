@@ -77,15 +77,26 @@ export function getEncoderDefinitions() {
     return ENCODER_DEFINITIONS
 }
 
-export function getEncoderDefinition(
-    encoderId: EncoderId
-): EncoderDefinition {
+export function isEncoderId(value: unknown): value is EncoderId {
+    return (
+        typeof value === 'string' &&
+        ENCODER_DEFINITIONS.some(
+            (definition) => definition.id === value
+        )
+    )
+}
+
+export function getEncoderDefinition(encoderId: unknown): EncoderDefinition {
+    if (!isEncoderId(encoderId)) {
+        throw new Error('Invalid encoder selection')
+    }
+
     const definition = ENCODER_DEFINITIONS.find(
         (candidate) => candidate.id === encoderId
     )
 
     if (!definition) {
-        throw new Error(`Unknown encoder: ${encoderId}`)
+        throw new Error('Invalid encoder selection')
     }
 
     return definition

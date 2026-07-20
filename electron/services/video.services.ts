@@ -14,6 +14,7 @@ import { resolvePackagedBinaryPath } from '../utils/binary-path.utils'
 import { TrimRequest, TrimResult } from '../types/trim'
 import { validateTrimParameters } from '../utils/trim-validation.utils'
 import { trimVideo } from './trim/trim.services'
+import { resolveCompressionEncoder } from './encoder/encoder-selection.services'
 
 const execFileAsync = promisify(execFile)
 
@@ -196,13 +197,15 @@ export async function compressVideo(
     throw new Error('Video not authorized')
   }
 
+  const encoder = await resolveCompressionEncoder(request.encoderId)
+
   const videoInfo = await getVideoInfo(filePath, request.videoId)
 
   const resolvedStartTime = request.startTime ?? 0
   const resolvedEndTime = request.endTime ?? videoInfo.duration
 
   validateCompressionParameters({
-    codec: request.codec,
+    codec: encoder.codec,
     targetSizeMB: request.targetSizeMB,
     sourceSizeMB: videoInfo.sizeMB,
     duration: videoInfo.duration,
@@ -220,7 +223,7 @@ export async function compressVideo(
     duration: videoInfo.duration,
     width: videoInfo.width,
     height: videoInfo.height,
-    codec: request.codec,
+    codec: encoder.codec,
     fps: request.fps,
     onProgress,
     startTime: resolvedStartTime,

@@ -1,3 +1,5 @@
+import type { EncoderId } from './encoder'
+
 export type CompressionCodec =
   | 'h264'
   | 'h265'
@@ -11,7 +13,7 @@ export type CompressionFps =
 export interface CompressionRequest {
   videoId: string
   targetSizeMB: number
-  codec: CompressionCodec
+  encoderId: EncoderId
   fps: CompressionFps
   startTime?: number
   endTime?: number
