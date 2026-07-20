@@ -52,6 +52,7 @@ interface Window {
       request: import('./types/trim').TrimRequest
     ) => Promise<import('./types/trim').TrimResult>
 
+    getEncoderCapabilities: () => Promise<import('./types/encoder').EncoderCapabilities>
   }
 
   windowControls: {

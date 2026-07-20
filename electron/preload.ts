@@ -2,7 +2,7 @@ import { ipcRenderer, contextBridge, webUtils } from 'electron'
 import { CompressionRequest, CompressionResult } from './types/compression'
 import { OpenedVideoPayload, VideoInfo } from './types/video'
 import { TrimRequest, TrimResult } from './types/trim'
-
+import type { EncoderCapabilities } from './types/encoder'
 
 contextBridge.exposeInMainWorld('videoCompressor', {
   selectVideo: (): Promise<VideoInfo | null> =>
@@ -58,6 +58,8 @@ contextBridge.exposeInMainWorld('videoCompressor', {
   trimVideo: (request: TrimRequest): Promise<TrimResult> =>
     ipcRenderer.invoke('trim-video', request),
 
+  getEncoderCapabilities: (): Promise<EncoderCapabilities> =>
+    ipcRenderer.invoke('get-encoder-capabilities'),
 })
 
 contextBridge.exposeInMainWorld('windowControls', {

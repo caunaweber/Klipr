@@ -9,6 +9,7 @@ import fs from 'node:fs'
 import { terminateAllFfmpegProcesses } from './utils/process-registry.utils'
 import { getSelectedVideoPath } from './utils/selected-video-registry.utils'
 import { getGeneratedOutputPath } from './utils/generated-output-registry.utils'
+import { getEncoderCapabilities } from './services/encoder/encoder-capabilities.services'
 
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -302,6 +303,36 @@ function createWindow() {
   win.setMenuBarVisibility(false)
   win.removeMenu()
 
+  win.webContents.once(
+    'did-finish-load',
+    () => {
+      setImmediate(() => {
+        void getEncoderCapabilities()
+          .then((capabilities) => {
+            if (VITE_DEV_SERVER_URL) {
+              console.log(
+                'Available encoder capabilities:'
+              )
+
+              console.log(
+                JSON.stringify(
+                  capabilities,
+                  null,
+                  2
+                )
+              )
+            }
+          })
+          .catch((error) => {
+            console.error(
+              'Could not warm encoder capabilities cache:',
+              error
+            )
+          })
+      })
+    }
+  )
+
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL)
   } else {
@@ -494,6 +525,8 @@ ipcMain.handle('show-notification', (_, options: { title: string; body: string }
   notification.show()
   return true
 })
+
+ipcMain.handle('get-encoder-capabilities', () => getEncoderCapabilities())
 
 if (process.platform === 'win32') {
   app.setAppUserModelId('com.caunaweber.klipr')
