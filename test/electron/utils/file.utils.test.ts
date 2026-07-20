@@ -4,7 +4,7 @@ import {
   expect,
   it,
 } from 'vitest'
-import { buildOutputPath } from './file.utils'
+import { buildOutputPath } from '../../../electron/utils/file.utils'
 
 describe('buildOutputPath', () => {
   it('builds a compression filename with codec and target size', () => {

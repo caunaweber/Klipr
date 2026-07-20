@@ -5,7 +5,7 @@ import {
   it,
   vi,
 } from 'vitest'
-import type { EncoderCapabilities } from '../../types/encoder'
+import type { EncoderCapabilities } from '../../../../electron/types/encoder'
 
 const mocks = vi.hoisted(() => ({
   getEncoderCapabilities: vi.fn<
@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock(
-  './encoder-capabilities.services',
+  '../../../../electron/services/encoder/encoder-capabilities.services',
   () => ({
     getEncoderCapabilities: mocks.getEncoderCapabilities,
   }),
@@ -23,7 +23,7 @@ vi.mock(
 import {
   resolveAvailableEncoder,
   resolveCompressionEncoder,
-} from './encoder-selection.services'
+} from '../../../../electron/services/encoder/encoder-selection.services'
 
 describe('resolveAvailableEncoder', () => {
   beforeEach(() => {

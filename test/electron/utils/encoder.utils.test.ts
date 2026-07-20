@@ -8,7 +8,7 @@ import {
   getEncoderDefinitions,
   isEncoderId,
   toEncoderCapability,
-} from './encoder.utils'
+} from '../../../electron/utils/encoder.utils'
 
 describe('encoder catalog', () => {
   it('maps every Klipr encoder ID to the correct FFmpeg encoder', () => {

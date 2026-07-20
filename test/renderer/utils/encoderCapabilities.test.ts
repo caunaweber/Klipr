@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import type { EncoderCapability } from '../../electron/types/encoder'
+import type { EncoderCapability } from '../../../electron/types/encoder'
 import {
   CPU_ENCODER_FALLBACK,
   getAvailableEncoders,
   resolveSelectedEncoder,
-} from './encoderCapabilities'
+} from '../../../src/utils/encoderCapabilities'
 
 const NVENC_H264: EncoderCapability = {
   id: 'nvenc-h264',

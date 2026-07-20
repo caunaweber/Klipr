@@ -5,7 +5,7 @@ import {
 } from 'vitest'
 import {
   parseListedFfmpegEncoders,
-} from './ffmpeg-encoder-parser.utils'
+} from '../../../electron/utils/ffmpeg-encoder-parser.utils'
 
 describe('parseListedFfmpegEncoders', () => {
   it('extracts the known encoders from FFmpeg output', () => {

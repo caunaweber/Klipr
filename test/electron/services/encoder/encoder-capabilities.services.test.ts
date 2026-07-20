@@ -8,7 +8,7 @@ import {
 } from 'vitest'
 import type {
   FfmpegEncoderName,
-} from '../../utils/encoder.utils'
+} from '../../../../electron/utils/encoder.utils'
 
 const mocks = vi.hoisted(() => ({
   listFfmpegEncoders: vi.fn<
@@ -20,7 +20,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock(
-  './encoder-listing.services',
+  '../../../../electron/services/encoder/encoder-listing.services',
   () => ({
     listFfmpegEncoders:
       mocks.listFfmpegEncoders,
@@ -28,7 +28,7 @@ vi.mock(
 )
 
 vi.mock(
-  './encoder-probe.services',
+  '../../../../electron/services/encoder/encoder-probe.services',
   () => ({
     probeFfmpegEncoder:
       mocks.probeFfmpegEncoder,
@@ -37,7 +37,7 @@ vi.mock(
 
 async function loadEncoderCapabilitiesService() {
   return import(
-    './encoder-capabilities.services'
+    '../../../../electron/services/encoder/encoder-capabilities.services'
   )
 }
 
