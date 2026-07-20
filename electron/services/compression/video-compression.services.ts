@@ -12,7 +12,7 @@ const require = createRequire(import.meta.url)
 const ffmpeg = require('ffmpeg-static')
 const ffmpegPath = resolvePackagedBinaryPath(ffmpeg)
 
-export async function onePassCompression(options: CompressionOptions): Promise<string> {
+export async function compressVideoFile(options: CompressionOptions): Promise<string> {
 
     const {
         filePath,
@@ -51,7 +51,7 @@ export async function onePassCompression(options: CompressionOptions): Promise<s
 
     const resolution = calculateResolution(width, height, bitrateKbps)
 
-    const outputPath = buildOutputPath(filePath, codec, targetSizeMB, false, fps)
+    const outputPath = buildOutputPath(filePath, codec, targetSizeMB, fps)
 
     const encoder = codec === 'h265' ? 'libx265' : 'libx264'
     const videoFilter = fps === 'native'

@@ -5,8 +5,7 @@ import { promisify } from 'util'
 import fs from 'fs'
 import path from 'node:path'
 import { VideoInfo } from '../types/video'
-import { onePassCompression } from './compression/one-pass.compression'
-import { twoPassCompression } from './compression/two-pass.compression'
+import { compressVideoFile } from './compression/video-compression.services'
 import { CompressionRequest, CompressionResult } from '../types/compression'
 import { validateCompressionParameters } from '../utils/compression-validation.utils'
 import { getSelectedVideoPath, registerSelectedVideo } from '../utils/selected-video-registry.utils'
@@ -215,31 +214,18 @@ export async function compressVideo(
     fps: request.fps,
   })
 
-  const outputPath = request.useTwoPass
-    ? await twoPassCompression({
-      filePath,
-      targetSizeMB: request.targetSizeMB,
-      duration: videoInfo.duration,
-      width: videoInfo.width,
-      height: videoInfo.height,
-      codec: request.codec,
-      fps: request.fps,
-      onProgress,
-      startTime: resolvedStartTime,
-      endTime: resolvedEndTime
-    })
-    : await onePassCompression({
-      filePath,
-      targetSizeMB: request.targetSizeMB,
-      duration: videoInfo.duration,
-      width: videoInfo.width,
-      height: videoInfo.height,
-      codec: request.codec,
-      fps: request.fps,
-      onProgress,
-      startTime: resolvedStartTime,
-      endTime: resolvedEndTime
-    })
+  const outputPath = await compressVideoFile({
+    filePath,
+    targetSizeMB: request.targetSizeMB,
+    duration: videoInfo.duration,
+    width: videoInfo.width,
+    height: videoInfo.height,
+    codec: request.codec,
+    fps: request.fps,
+    onProgress,
+    startTime: resolvedStartTime,
+    endTime: resolvedEndTime
+  })
 
   return {
     outputId: registerGeneratedOutput(outputPath),

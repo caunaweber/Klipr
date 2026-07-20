@@ -12,7 +12,6 @@ import { ExportProgress } from './components/ExportProgress'
 import { ExportResult } from './components/ExportResult'
 import { FpsSelect } from './components/FpsSelect'
 import { TargetSizeInput } from './components/TargetSizeInput'
-import { TwoPassToggle } from './components/TwoPassToggle'
 import { VideoDropzone } from './components/VideoDropzone'
 import { VideoPreview } from './components/VideoPreview'
 import { Button } from './components/ui/button'
@@ -49,12 +48,10 @@ function App() {
     setCodec,
     setFps,
     setTargetSizeMB,
-    setUseTwoPass,
     showPreviewError,
     status,
     targetSizeMB,
     trimVideo,
-    useTwoPass,
     videoInfo,
   } = useVideoCompression()
   const player = useVideoPlayer({
@@ -219,17 +216,11 @@ function App() {
 
                 <div className="flex flex-col gap-3">
                   <CodecSelect codec={codec} onCodecChange={setCodec} />
-                  <div className="grid grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] items-end gap-2">
-                    <FpsSelect
-                      fps={fps}
-                      sourceFps={videoInfo.fps}
-                      onFpsChange={setFps}
-                    />
-                    <TwoPassToggle
-                      checked={useTwoPass}
-                      onCheckedChange={setUseTwoPass}
-                    />
-                  </div>
+                  <FpsSelect
+                    fps={fps}
+                    sourceFps={videoInfo.fps}
+                    onFpsChange={setFps}
+                  />
                   <TargetSizeInput
                     sourceSizeMB={videoInfo.sizeMB}
                     value={targetSizeMB}

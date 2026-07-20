@@ -6,16 +6,10 @@ export function buildOutputPath(
   filePath: string,
   codec: CompressionCodec,
   targetSizeMB: number,
-  useTwoPass: boolean,
   fps: CompressionFps = 'native'
 ): string {
 
   const parsedFile = path.parse(filePath)
-
-  const passMode =
-    useTwoPass
-      ? '2pass'
-      : '1pass'
 
   const sizeLabel =
     targetSizeMB
@@ -34,7 +28,7 @@ export function buildOutputPath(
 
   return path.join(
     parsedFile.dir,
-    `${parsedFile.name}-${codecName}-${passMode}-${sizeLabel}MB${fpsLabel}-compressed.mp4`
+    `${parsedFile.name}-${codecName}-${sizeLabel}MB${fpsLabel}-compressed.mp4`
   )
 }
 

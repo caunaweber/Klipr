@@ -11,7 +11,6 @@ export type CompressionFps =
 export interface CompressionRequest {
   videoId: string
   targetSizeMB: number
-  useTwoPass: boolean
   codec: CompressionCodec
   fps: CompressionFps
   startTime?: number

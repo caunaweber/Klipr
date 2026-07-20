@@ -32,7 +32,6 @@ The app is designed for quick everyday use, but the project also explores deskto
 - Export a selected clip without compression.
 - Set a target output size in MB.
 - Choose between H.264 and H.265/HEVC compression.
-- Optional 2-pass compression for better size/quality balance.
 - Cancel an active compression.
 - Open the output folder after export finishes.
 - Supports MP4, MKV, and AVI input files.
@@ -145,7 +144,6 @@ O app foi pensado para uso rápido no dia a dia, mas o projeto também trabalha 
 - Exportação do trecho selecionado sem compressão.
 - Definição do tamanho final desejado em MB.
 - Escolha entre compressão H.264 e H.265/HEVC.
-- Compressão em 2 passes opcional para melhor equilíbrio entre tamanho e qualidade.
 - Cancelamento de compressão em andamento.
 - Botão para abrir a pasta do arquivo final após a exportação.
 - Suporte a arquivos de entrada MP4, MKV e AVI.

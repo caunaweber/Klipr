@@ -51,10 +51,7 @@ function getCompressionErrorMessage(error: unknown) {
     return 'Selected FPS cannot be higher than the source video FPS.'
   }
 
-  if (
-    errorText.includes('FFmpeg exited') ||
-    errorText.includes('First pass failed')
-  ) {
+  if (errorText.includes('FFmpeg exited')) {
     return 'FFmpeg could not compress this video. Try a different codec or target size.'
   }
 
@@ -98,7 +95,6 @@ export function useVideoCompression() {
   const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null)
   const [targetSizeMB, setTargetSizeMB] = useState('10')
   const [progress, setProgress] = useState(0)
-  const [useTwoPass, setUseTwoPass] = useState(false)
   const [isCompressing, setIsCompressing] = useState(false)
   const [isTrimming, setIsTrimming] = useState(false)
   const [isSelectingVideo, setIsSelectingVideo] = useState(false)
@@ -244,7 +240,6 @@ export function useVideoCompression() {
       const result = await window.videoCompressor.compressVideo({
         videoId: videoInfo.id,
         targetSizeMB: Number(targetSizeMB),
-        useTwoPass,
         codec,
         fps,
         startTime: clipStart,
@@ -452,12 +447,10 @@ export function useVideoCompression() {
     setCodec,
     setFps,
     setTargetSizeMB,
-    setUseTwoPass,
     showPreviewError,
     status,
     targetSizeMB,
     trimVideo,
-    useTwoPass,
     videoInfo,
   }
 }
