@@ -28,7 +28,7 @@ describe('calculateVideoBitrate', () => {
       'nvenc',
     )
 
-    expect(result.bitrateKbps).toBe(3951)
+    expect(result.bitrateKbps).toBe(3993)
   })
 
   it('applies the AMF safety factor', () => {
@@ -38,10 +38,10 @@ describe('calculateVideoBitrate', () => {
       'amf',
     )
 
-    expect(result.bitrateKbps).toBe(3867)
+    expect(result.bitrateKbps).toBe(3993)
   })
 
-  it('keeps GPU bitrates below CPU', () => {
+  it('applies the same GPU safety factor below CPU', () => {
     const cpu = calculateVideoBitrate(
       10,
       30,
@@ -61,7 +61,9 @@ describe('calculateVideoBitrate', () => {
     expect(nvenc.bitrateKbps)
       .toBeLessThan(cpu.bitrateKbps)
     expect(amf.bitrateKbps)
-      .toBeLessThan(nvenc.bitrateKbps)
+      .toBeLessThan(cpu.bitrateKbps)
+    expect(amf.bitrateKbps)
+      .toBe(nvenc.bitrateKbps)
   })
 
   it('rejects targets that leave less than 100 kbps for video', () => {
