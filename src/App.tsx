@@ -142,7 +142,7 @@ function App() {
         <section
           className={
             videoInfo
-              ? 'grid min-h-full gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_320px]'
+              ? 'grid min-h-full gap-3 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_275px]'
               : 'grid min-h-full justify-items-center gap-3 lg:min-h-0 lg:flex-1'
           }
         >
