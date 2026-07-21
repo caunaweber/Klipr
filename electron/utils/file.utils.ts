@@ -1,12 +1,14 @@
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { CompressionCodec, CompressionFps } from '../types/compression'
+import type { EncoderTechnology } from '../types/encoder'
 
 export function buildOutputPath(
   filePath: string,
   codec: CompressionCodec,
   targetSizeMB: number,
-  fps: CompressionFps = 'native'
+  fps: CompressionFps = 'native',
+  technology: EncoderTechnology = 'cpu',
 ): string {
 
   const parsedFile = path.parse(filePath)
@@ -26,9 +28,14 @@ export function buildOutputPath(
       ? ''
       : `-${fps}fps`
 
+  const technologyLabel =
+    technology === 'cpu'
+      ? ''
+      : `-${technology}`
+
   return path.join(
     parsedFile.dir,
-    `${parsedFile.name}-${codecName}-${sizeLabel}MB${fpsLabel}-compressed.mp4`
+    `${parsedFile.name}-${codecName}-${sizeLabel}MB${fpsLabel}${technologyLabel}-compressed.mp4`
   )
 }
 

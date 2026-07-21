@@ -16,8 +16,10 @@ export async function resolveAvailableEncoder(encoderId: EncoderId): Promise<Enc
 export async function resolveCompressionEncoder(encoderId: EncoderId): Promise<EncoderDefinition> {
   const definition = await resolveAvailableEncoder(encoderId)
 
-  if (definition.technology !== 'cpu') {
-    throw new Error('GPU encoding is not enabled yet')
+  if (definition.technology === 'amf') {
+    throw new Error(
+      'AMD AMF encoding is not enabled yet'
+    )
   }
 
   return definition

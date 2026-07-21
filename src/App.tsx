@@ -35,7 +35,7 @@ function App() {
     fps,
     isCancelling,
     isCompressing,
-    isGpuEncoderSelected,
+    isEncoderImplementationPending,
     isLoadingEncoders,
     isSelectingVideo,
     isTrimming,
@@ -81,7 +81,7 @@ function App() {
     isFpsInvalid ||
     isTrimRangeInvalid ||
     isLoadingEncoders ||
-    isGpuEncoderSelected ||
+    isEncoderImplementationPending ||
     (isVideoOperationActive && !isCompressing)
   const isTrimDisabled =
     !videoInfo ||
@@ -227,9 +227,9 @@ function App() {
                     onEncoderChange={setSelectedEncoderId}
                     selectedEncoderId={selectedEncoderId}
                   />
-                  {isGpuEncoderSelected && (
+                  {isEncoderImplementationPending && (
                     <p className="text-xs leading-5 text-amber-300/90">
-                      GPU compression will be enabled in the next implementation step.
+                      AMD AMF compression will be enabled in the next implementation step.
                     </p>
                   )}
                   <FpsSelect

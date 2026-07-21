@@ -1,20 +1,43 @@
 import type { EncoderDefinition } from '../../utils/encoder.utils'
 
 export function buildEncoderArguments(encoder: EncoderDefinition, bitrateKbps: number): string[] {
-  if (encoder.technology !== 'cpu') {
-    throw new Error(
-      'GPU encoder arguments are not implemented yet'
-    )
+
+  if (encoder.technology === 'cpu') {
+    return [
+      '-c:v',
+      encoder.ffmpegName,
+
+      '-preset',
+      'slow',
+
+      '-b:v',
+      `${bitrateKbps}k`,
+    ]
   }
 
-  return [
-    '-c:v',
-    encoder.ffmpegName,
+  if (encoder.technology === 'nvenc') {
+    return [
+      '-c:v',
+      encoder.ffmpegName,
 
-    '-preset',
-    'slow',
+      '-preset',
+      'p5',
 
-    '-b:v',
-    `${bitrateKbps}k`,
-  ]
+      '-tune',
+      'hq',
+
+      '-rc',
+      'vbr',
+
+      '-b:v',
+      `${bitrateKbps}k`,
+
+      '-pix_fmt',
+      'yuv420p',
+    ]
+  }
+
+  throw new Error(
+    'AMD AMF encoder arguments are not implemented yet'
+  )
 }

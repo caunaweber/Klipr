@@ -31,4 +31,18 @@ describe('buildOutputPath', () => {
       'gameplay-avc-7_5MB-60fps-compressed.mp4'
     )
   })
+
+  it('includes NVENC in GPU output filenames', () => {
+    const outputPath = buildOutputPath(
+      path.join('videos', 'gameplay.mp4'),
+      'h265',
+      10,
+      'native',
+      'nvenc',
+    )
+
+    expect(path.basename(outputPath)).toBe(
+      'gameplay-hevc-10MB-nvenc-compressed.mp4'
+    )
+  })
 })

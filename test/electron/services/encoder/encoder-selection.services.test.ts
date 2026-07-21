@@ -103,7 +103,29 @@ describe('resolveAvailableEncoder', () => {
     })
   })
 
-  it('does not silently run an available GPU selection on CPU', async () => {
+  it('allows an available NVENC encoder', async () => {
+    mocks.getEncoderCapabilities.mockResolvedValue({
+      encoders: [
+        {
+          id: 'nvenc-h264',
+          technology: 'nvenc',
+          codec: 'h264',
+          label: 'AVC (H.264) — NVIDIA NVENC',
+          description: 'Hardware encoding with NVIDIA GPU',
+        },
+      ],
+    })
+
+    await expect(
+      resolveCompressionEncoder('nvenc-h264'),
+    ).resolves.toMatchObject({
+      id: 'nvenc-h264',
+      technology: 'nvenc',
+      ffmpegName: 'h264_nvenc',
+    })
+  })
+
+  it('keeps AMF blocked until it is implemented', async () => {
     mocks.getEncoderCapabilities.mockResolvedValue({
       encoders: [
         {
@@ -118,6 +140,8 @@ describe('resolveAvailableEncoder', () => {
 
     await expect(
       resolveCompressionEncoder('amf-h264'),
-    ).rejects.toThrow('GPU encoding is not enabled yet')
+    ).rejects.toThrow(
+      'AMD AMF encoding is not enabled yet'
+    )
   })
 })

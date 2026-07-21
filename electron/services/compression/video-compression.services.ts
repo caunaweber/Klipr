@@ -54,7 +54,7 @@ export async function compressVideoFile(options: CompressionOptions): Promise<st
 
     const resolution = calculateResolution(width, height, bitrateKbps)
 
-    const outputPath = buildOutputPath(filePath, encoder.codec, targetSizeMB, fps)
+    const outputPath = buildOutputPath(filePath, encoder.codec, targetSizeMB, fps, encoder.technology)
 
     const videoFilter = fps === 'native'
         ? `scale=${resolution.width}:${resolution.height}`

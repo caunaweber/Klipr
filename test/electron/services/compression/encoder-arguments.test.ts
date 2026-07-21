@@ -49,9 +49,59 @@ describe('buildEncoderArguments', () => {
         ])
     })
 
-    it('rejects GPU encoders until their arguments are implemented', () => {
+    it('builds H.264 NVENC arguments', () => {
         const encoder =
             getEncoderDefinition('nvenc-h264')
+
+        expect(
+            buildEncoderArguments(
+                encoder,
+                3000,
+            )
+        ).toEqual([
+            '-c:v',
+            'h264_nvenc',
+            '-preset',
+            'p5',
+            '-tune',
+            'hq',
+            '-rc',
+            'vbr',
+            '-b:v',
+            '3000k',
+            '-pix_fmt',
+            'yuv420p',
+        ])
+    })
+
+    it('builds HEVC NVENC arguments', () => {
+        const encoder =
+            getEncoderDefinition('nvenc-h265')
+
+        expect(
+            buildEncoderArguments(
+                encoder,
+                2500,
+            )
+        ).toEqual([
+            '-c:v',
+            'hevc_nvenc',
+            '-preset',
+            'p5',
+            '-tune',
+            'hq',
+            '-rc',
+            'vbr',
+            '-b:v',
+            '2500k',
+            '-pix_fmt',
+            'yuv420p',
+        ])
+    })
+
+    it('rejects AMF until its arguments are implemented', () => {
+        const encoder =
+            getEncoderDefinition('amf-h264')
 
         expect(() =>
             buildEncoderArguments(
@@ -59,7 +109,7 @@ describe('buildEncoderArguments', () => {
                 1500,
             )
         ).toThrow(
-            'GPU encoder arguments are not implemented yet'
+            'AMD AMF encoder arguments are not implemented yet'
         )
     })
 })
