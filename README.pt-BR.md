@@ -60,6 +60,12 @@ O Klipr consulta o FFmpeg para descobrir quais encoders estão disponíveis no c
 - **NVIDIA NVENC:** requer GPU NVIDIA e driver gráfico compatíveis.
 - A seleção da GPU é manual. O Klipr não troca silenciosamente de encoder se uma exportação por GPU falhar.
 
+## Precisão do Tamanho Final
+
+O tamanho selecionado é uma estimativa, não uma garantia exata do tamanho final. O controle de bitrate do encoder, a duração, o FPS, a complexidade das cenas, o áudio e o overhead do container podem fazer o arquivo ficar um pouco maior ou menor.
+
+Para plataformas com limite rígido de upload, comece usando um target aproximadamente 1 MB abaixo do limite. Para vídeos longos, com FPS alto ou cenas muito dinâmicas, uma margem de 2–3 MB pode ser mais segura.
+
 ## Destaques Técnicos
 
 - Desenvolvido com Electron, React, TypeScript, Vite e Tailwind CSS.

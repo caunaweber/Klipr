@@ -59,6 +59,12 @@ Klipr asks FFmpeg which encoders are available on the current computer and valid
 - **AMD AMF:** requires a compatible AMD GPU and graphics driver.
 - **NVIDIA NVENC:** requires a compatible NVIDIA GPU and graphics driver.
 
+## Target Size Accuracy
+
+The selected target size is an estimate, not a guaranteed exact output size. Encoder rate control, video duration, frame rate, scene complexity, audio, and container overhead can make the final file slightly larger or smaller.
+
+For platforms with a strict upload limit, start with a target around 1 MB below the limit. For longer, high-frame-rate, or highly dynamic videos, a margin of 2–3 MB may be safer.
+
 ## Technical Highlights
 
 - Built with Electron, React, TypeScript, Vite, and Tailwind CSS.

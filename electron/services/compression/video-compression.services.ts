@@ -49,7 +49,7 @@ export async function compressVideoFile(options: CompressionOptions): Promise<st
         ? ['-t', String(clipDuration)]
         : []
 
-    const { bitrateKbps, audioBitrateKbps } = calculateVideoBitrate(targetSizeMB, clipDuration)
+    const { bitrateKbps, audioBitrateKbps } = calculateVideoBitrate(targetSizeMB, clipDuration, encoder.technology)
 
     const encoderArgs = buildEncoderArguments(encoder, bitrateKbps)
 
