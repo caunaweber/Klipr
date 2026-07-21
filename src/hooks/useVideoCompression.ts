@@ -123,7 +123,6 @@ export function useVideoCompression() {
 
   const isVideoOperationActive = isCompressing || isTrimming || isCancelling
   const selectedEncoder = resolveSelectedEncoder(availableEncoders, selectedEncoderId)
-  const isEncoderImplementationPending = selectedEncoder.technology === 'amf'
 
   const applySelectedVideo = useCallback((info: VideoInfo) => {
     setVideoInfo(info)
@@ -482,7 +481,6 @@ export function useVideoCompression() {
     exportResult,
     isCancelling,
     isCompressing,
-    isEncoderImplementationPending,
     isLoadingEncoders,
     isSelectingVideo,
     isTrimming,

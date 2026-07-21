@@ -99,17 +99,53 @@ describe('buildEncoderArguments', () => {
         ])
     })
 
-    it('rejects AMF until its arguments are implemented', () => {
+    it('builds H.264 AMF arguments', () => {
         const encoder =
             getEncoderDefinition('amf-h264')
 
-        expect(() =>
+        expect(
             buildEncoderArguments(
                 encoder,
-                1500,
+                3000,
             )
-        ).toThrow(
-            'AMD AMF encoder arguments are not implemented yet'
-        )
+        ).toEqual([
+            '-c:v',
+            'h264_amf',
+            '-usage',
+            'transcoding',
+            '-quality',
+            'quality',
+            '-rc',
+            'vbr_peak',
+            '-b:v',
+            '3000k',
+            '-pix_fmt',
+            'yuv420p',
+        ])
+    })
+
+    it('builds HEVC AMF arguments', () => {
+        const encoder =
+            getEncoderDefinition('amf-h265')
+
+        expect(
+            buildEncoderArguments(
+                encoder,
+                2500,
+            )
+        ).toEqual([
+            '-c:v',
+            'hevc_amf',
+            '-usage',
+            'transcoding',
+            '-quality',
+            'quality',
+            '-rc',
+            'vbr_peak',
+            '-b:v',
+            '2500k',
+            '-pix_fmt',
+            'yuv420p',
+        ])
     })
 })

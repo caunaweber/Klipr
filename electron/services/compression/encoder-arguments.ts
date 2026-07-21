@@ -37,7 +37,29 @@ export function buildEncoderArguments(encoder: EncoderDefinition, bitrateKbps: n
     ]
   }
 
+  if (encoder.technology === 'amf') {
+    return [
+      '-c:v',
+      encoder.ffmpegName,
+
+      '-usage',
+      'transcoding',
+
+      '-quality',
+      'quality',
+
+      '-rc',
+      'vbr_peak',
+
+      '-b:v',
+      `${bitrateKbps}k`,
+
+      '-pix_fmt',
+      'yuv420p',
+    ]
+  }
+
   throw new Error(
-    'AMD AMF encoder arguments are not implemented yet'
+    'Unsupported encoder technology'
   )
 }

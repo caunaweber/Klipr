@@ -125,7 +125,7 @@ describe('resolveAvailableEncoder', () => {
     })
   })
 
-  it('keeps AMF blocked until it is implemented', async () => {
+  it('allows an available AMF encoder', async () => {
     mocks.getEncoderCapabilities.mockResolvedValue({
       encoders: [
         {
@@ -140,8 +140,10 @@ describe('resolveAvailableEncoder', () => {
 
     await expect(
       resolveCompressionEncoder('amf-h264'),
-    ).rejects.toThrow(
-      'AMD AMF encoding is not enabled yet'
-    )
+    ).resolves.toMatchObject({
+      id: 'amf-h264',
+      technology: 'amf',
+      ffmpegName: 'h264_amf',
+    })
   })
 })

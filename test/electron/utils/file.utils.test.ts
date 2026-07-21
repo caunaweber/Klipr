@@ -45,4 +45,18 @@ describe('buildOutputPath', () => {
       'gameplay-hevc-10MB-nvenc-compressed.mp4'
     )
   })
+
+  it('includes AMF in GPU output filenames', () => {
+    const outputPath = buildOutputPath(
+      path.join('videos', 'gameplay.mp4'),
+      'h264',
+      10,
+      'native',
+      'amf',
+    )
+
+    expect(path.basename(outputPath)).toBe(
+      'gameplay-avc-10MB-amf-compressed.mp4'
+    )
+  })
 })
