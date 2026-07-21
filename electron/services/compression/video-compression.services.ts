@@ -8,6 +8,7 @@ import { buildOutputPath, removeFileIfExists } from '../../utils/file.utils'
 import { createFfmpegCancelledError, registerFfmpegProcess } from '../../utils/process-registry.utils'
 import { resolvePackagedBinaryPath } from '../../utils/binary-path.utils'
 import { buildEncoderArguments } from './encoder-arguments'
+import { createCompressionProcessError } from './compression-error'
 
 const require = createRequire(import.meta.url)
 const ffmpeg = require('ffmpeg-static')
@@ -117,8 +118,7 @@ export async function compressVideoFile(options: CompressionOptions): Promise<st
             }
         )
 
-        const getStderr =
-            captureStderr(ffmpegProcess)
+        const getStderr = captureStderr(ffmpegProcess)
 
         attachProgressListener(
             ffmpegProcess,
@@ -160,11 +160,26 @@ export async function compressVideoFile(options: CompressionOptions): Promise<st
                     return
                 }
 
+                const stderr = getStderr()
+
+                console.error(
+                    'FFmpeg compression failed:',
+                    {
+                        encoderId: encoder.id,
+                        ffmpegName: encoder.ffmpegName,
+                        technology: encoder.technology,
+                        exitCode: code,
+                        stderr,
+                    }
+                )
+
                 await removeFileIfExists(outputPath)
 
                 reject(
-                    new Error(
-                        `FFmpeg exited with code ${code}\n${getStderr()}`
+                    createCompressionProcessError(
+                        encoder,
+                        code,
+                        stderr,
                     )
                 )
             }

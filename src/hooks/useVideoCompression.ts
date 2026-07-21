@@ -60,8 +60,12 @@ function getCompressionErrorMessage(error: unknown) {
     return 'The selected encoder is no longer available. Try a CPU encoder.'
   }
 
+  if (errorText.includes('GPU_ENCODING_FAILED')) {
+    return 'GPU encoding failed. Check your graphics driver or select a CPU encoder.'
+  }
+
   if (errorText.includes('FFmpeg exited')) {
-    return 'FFmpeg could not compress this video. Try a different codec or target size.'
+    return 'FFmpeg could not compress this video. Try a different encoder or target size.'
   }
 
   return 'Compression failed. Check the settings and try again.'
@@ -276,13 +280,7 @@ export function useVideoCompression() {
         : getCompressionErrorMessage(error)
 
       setStatus(wasCancelled ? 'cancelled' : 'error')
-
-      if (wasCancelled) {
-        setMessage(errorMessage)
-      } else {
-        setMessage(null)
-        void notify(errorMessage, 'Compression failed')
-      }
+      setMessage(errorMessage)
 
     } finally {
       setIsCompressing(false)
