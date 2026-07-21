@@ -7,6 +7,7 @@ import { calculateResolution } from '../../utils/resolution.utils'
 import { buildOutputPath, removeFileIfExists } from '../../utils/file.utils'
 import { createFfmpegCancelledError, registerFfmpegProcess } from '../../utils/process-registry.utils'
 import { resolvePackagedBinaryPath } from '../../utils/binary-path.utils'
+import { buildEncoderArguments } from './encoder-arguments'
 
 const require = createRequire(import.meta.url)
 const ffmpeg = require('ffmpeg-static')
@@ -21,10 +22,10 @@ export async function compressVideoFile(options: CompressionOptions): Promise<st
         onProgress,
         width,
         height,
-        codec,
+        encoder,
         fps,
         startTime,
-        endTime
+        endTime,
     } = options
 
     const start = startTime ?? 0
@@ -49,11 +50,12 @@ export async function compressVideoFile(options: CompressionOptions): Promise<st
 
     const { bitrateKbps, audioBitrateKbps } = calculateVideoBitrate(targetSizeMB, clipDuration)
 
+    const encoderArgs = buildEncoderArguments(encoder, bitrateKbps)
+
     const resolution = calculateResolution(width, height, bitrateKbps)
 
-    const outputPath = buildOutputPath(filePath, codec, targetSizeMB, fps)
+    const outputPath = buildOutputPath(filePath, encoder.codec, targetSizeMB, fps)
 
-    const encoder = codec === 'h265' ? 'libx265' : 'libx264'
     const videoFilter = fps === 'native'
         ? `scale=${resolution.width}:${resolution.height}`
         : `scale=${resolution.width}:${resolution.height},fps=${fps}`
@@ -72,14 +74,7 @@ export async function compressVideoFile(options: CompressionOptions): Promise<st
 
                 ...durationArgs,
 
-                '-preset',
-                'slow',
-
-                '-b:v',
-                `${bitrateKbps}k`,
-
-                '-c:v',
-                encoder,
+                ...encoderArgs,
 
                 '-c:a',
                 'aac',

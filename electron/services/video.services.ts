@@ -223,11 +223,11 @@ export async function compressVideo(
     duration: videoInfo.duration,
     width: videoInfo.width,
     height: videoInfo.height,
-    codec: encoder.codec,
+    encoder,
     fps: request.fps,
     onProgress,
     startTime: resolvedStartTime,
-    endTime: resolvedEndTime
+    endTime: resolvedEndTime,
   })
 
   return {

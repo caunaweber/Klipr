@@ -1,4 +1,5 @@
 import type { EncoderId } from './encoder'
+import type { EncoderDefinition } from '../utils/encoder.utils'
 
 export type CompressionCodec =
   | 'h264'
@@ -35,7 +36,7 @@ export interface CompressionOptions {
   startTime?: number
   endTime?: number
 
-  codec: CompressionCodec
+  encoder: EncoderDefinition
   fps: CompressionFps
 
   onProgress: (progress: number) => void
