@@ -129,6 +129,7 @@ export function VideoPreview({
       <TrimRange
         clipEnd={clipEnd}
         clipStart={clipStart}
+        currentTime={currentTime}
         duration={videoInfo.duration}
         onClipEndChange={onClipEndChange}
         onClipStartChange={onClipStartChange}

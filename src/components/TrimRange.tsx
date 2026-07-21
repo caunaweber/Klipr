@@ -8,6 +8,7 @@ import { Button } from './ui/button'
 interface TrimRangeProps {
   clipEnd: number
   clipStart: number
+  currentTime: number
   duration: number
   isTrimDisabled: boolean
   isTrimming: boolean
@@ -21,6 +22,7 @@ interface TrimRangeProps {
 export function TrimRange({
   clipEnd,
   clipStart,
+  currentTime,
   duration,
   isTrimDisabled,
   isTrimming,
@@ -35,7 +37,11 @@ export function TrimRange({
 
   const startPercent = (clipStart / duration) * 100
   const endPercent = (clipEnd / duration) * 100
+  const boundedCurrentTime = Math.min(Math.max(currentTime, clipStart), clipEnd)
+
+  const currentPercent = duration > 0 ? (boundedCurrentTime / duration) * 100 : 0
   const selectedDuration = clipEnd - clipStart
+  
   const trackStyle = {
     background: `linear-gradient(
       to right,
@@ -152,6 +158,13 @@ export function TrimRange({
             style={{ ...props.style, ...trackStyle }}
             className="trim-track"
           >
+            <span
+              aria-hidden="true"
+              className="trim-playhead"
+              style={{ left: `${currentPercent}%` }}
+            >
+              ▼
+            </span>
             {children}
           </div>
         )}
