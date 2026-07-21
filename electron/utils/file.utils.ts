@@ -81,3 +81,14 @@ export async function removeFileIfExists(filePath: string) {
     throw error
   }
 }
+
+export async function removeFileIfExistsBestEffort(filePath: string) {
+  try {
+    await removeFileIfExists(filePath)
+  } catch (error) {
+    console.warn(
+      'Could not remove incomplete output file:',
+      error
+    )
+  }
+}

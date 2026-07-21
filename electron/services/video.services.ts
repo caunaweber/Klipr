@@ -19,8 +19,9 @@ import { resolveCompressionEncoder } from './encoder/encoder-selection.services'
 const execFileAsync = promisify(execFile)
 
 const require = createRequire(import.meta.url)
-const ffprobe = require('ffprobe-static')
-const ffprobePath = resolvePackagedBinaryPath(ffprobe.path)
+const ffprobePath = resolvePackagedBinaryPath(
+  require('@derhuerst/ffprobe-static')
+)
 
 const SUPPORTED_VIDEO_EXTENSIONS = new Set(['.mp4', '.avi', '.mkv', '.mov', '.webm'])
 

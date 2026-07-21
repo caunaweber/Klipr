@@ -11,11 +11,11 @@
     "dist",
     "dist-electron",
     "node_modules/ffmpeg-static",
-    "node_modules/ffprobe-static"
+    "node_modules/@derhuerst/ffprobe-static"
   ],
   "asarUnpack": [
     "node_modules/ffmpeg-static/**/*",
-    "node_modules/ffprobe-static/**/*"
+    "node_modules/@derhuerst/ffprobe-static/**/*"
   ],
   "mac": {
     "icon": "build/icon.icns",
@@ -26,6 +26,24 @@
   },
   "win": {
     "icon": "build/icon.ico",
+    "extraResources": [
+      {
+        "from": "THIRD_PARTY_NOTICES.md",
+        "to": "legal/THIRD_PARTY_NOTICES.md"
+      },
+      {
+        "from": "node_modules/ffmpeg-static/ffmpeg.exe.LICENSE",
+        "to": "legal/GPL-3.0.txt"
+      },
+      {
+        "from": "node_modules/ffmpeg-static/ffmpeg.exe.README",
+        "to": "legal/FFMPEG-6.1.1-BUILD.txt"
+      },
+      {
+        "from": "node_modules/@derhuerst/ffprobe-static/ffprobe.exe.README",
+        "to": "legal/FFPROBE-6.1.1-BUILD.txt"
+      }
+    ],
     "fileAssociations": [
       {
         "ext": [

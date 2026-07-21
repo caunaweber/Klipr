@@ -2,7 +2,7 @@ import { createRequire } from 'node:module'
 import { spawn } from 'child_process'
 import type { TrimOptions } from '../../types/trim'
 import { captureStderr } from '../../utils/ffmpeg.utils'
-import { buildTrimOutputPath, removeFileIfExists } from '../../utils/file.utils'
+import { buildTrimOutputPath, removeFileIfExistsBestEffort } from '../../utils/file.utils'
 import { createFfmpegCancelledError, registerFfmpegProcess } from '../../utils/process-registry.utils'
 import { resolvePackagedBinaryPath } from '../../utils/binary-path.utils'
 
@@ -107,7 +107,7 @@ export async function trimVideo(options: TrimOptions): Promise<string> {
                     ffmpegControl.isCancelled() ||
                     signal !== null
 
-                await removeFileIfExists(outputPath)
+                await removeFileIfExistsBestEffort(outputPath)
 
                 if (wasCancelled) {
                     reject(createFfmpegCancelledError())

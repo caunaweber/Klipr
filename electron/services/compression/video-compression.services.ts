@@ -4,7 +4,7 @@ import { spawn } from 'child_process'
 import { calculateVideoBitrate } from '../../utils/bitrate.utils'
 import { attachProgressListener, captureStderr } from '../../utils/ffmpeg.utils'
 import { calculateResolution } from '../../utils/resolution.utils'
-import { buildOutputPath, removeFileIfExists } from '../../utils/file.utils'
+import { buildOutputPath, removeFileIfExistsBestEffort } from '../../utils/file.utils'
 import { createFfmpegCancelledError, registerFfmpegProcess } from '../../utils/process-registry.utils'
 import { resolvePackagedBinaryPath } from '../../utils/binary-path.utils'
 import { buildEncoderArguments } from './encoder-arguments'
@@ -155,7 +155,7 @@ export async function compressVideoFile(options: CompressionOptions): Promise<st
                     signal !== null
 
                 if (wasCancelled) {
-                    await removeFileIfExists(outputPath)
+                    await removeFileIfExistsBestEffort(outputPath)
                     reject(createFfmpegCancelledError())
                     return
                 }
@@ -173,7 +173,7 @@ export async function compressVideoFile(options: CompressionOptions): Promise<st
                     }
                 )
 
-                await removeFileIfExists(outputPath)
+                await removeFileIfExistsBestEffort(outputPath)
 
                 reject(
                     createCompressionProcessError(
