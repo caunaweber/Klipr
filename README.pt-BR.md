@@ -22,6 +22,8 @@ O app foi pensado para uso rápido no dia a dia, mas o projeto também trabalha 
 - Adicionado controle do FPS de saída com as opções Nativo, 30 FPS, 60 FPS e 120 FPS.
 - Adicionada integração **Abrir com Klipr** no Windows para os formatos de vídeo suportados.
 - Adicionado tratamento claro de falhas de GPU pela notificação padrão do aplicativo.
+- Adicionado um playhead sincronizado à linha do tempo de trim. Clicar no intervalo selecionado agora posiciona o preview sem mover os marcadores de início ou fim.
+- Melhorada a estabilidade do preview durante seeks com previews MP4 temporários otimizados quando necessário.
 - Compressão simplificada para um fluxo de passagem única.
 - FFprobe atualizado para 6.1.1 e remoção de arquivos desnecessários do instalador Windows.
 
@@ -41,7 +43,8 @@ O app foi pensado para uso rápido no dia a dia, mas o projeto também trabalha 
 
 - Seleção de vídeos locais pelo explorador de arquivos, por drag and drop ou por **Abrir com Klipr** no Windows.
 - Preview do vídeo selecionado dentro do app.
-- Corte de clipes com definição de início e fim.
+- Acompanhamento da reprodução por um playhead sincronizado e seek direto pela linha do tempo de trim.
+- Corte de clipes arrastando os marcadores de início e fim independentemente da posição do preview.
 - Exportação do trecho selecionado sem compressão.
 - Definição do tamanho final desejado em MB.
 - Encoding AVC/H.264 ou HEVC/H.265 usando a CPU.
@@ -51,6 +54,18 @@ O app foi pensado para uso rápido no dia a dia, mas o projeto também trabalha 
 - Botão para abrir a pasta do arquivo final após a exportação.
 - Suporte a arquivos de entrada MP4, MKV, MOV, WebM e AVI.
 - Exportação dos vídeos comprimidos e clipes cortados em MP4.
+
+## Previews Temporários de Vídeo
+
+Alguns arquivos MP4 válidos armazenam seus metadados de navegação no final do arquivo, o que pode tornar seeks repetidos instáveis no Chromium. Quando o Klipr detecta essa estrutura, ele usa o FFmpeg para criar um preview otimizado no diretório temporário do sistema operacional.
+
+- O preview é remontado com `faststart`; vídeo e áudio são copiados sem recodificação ou perda de qualidade.
+- O vídeo de origem nunca é alterado e continua sendo a entrada das operações de trim e compressão.
+- Arquivos MP4 que já estão otimizados, assim como os outros contêineres suportados, são reproduzidos diretamente sem criar uma cópia temporária.
+- O preview temporário é removido quando outro vídeo é selecionado ou quando o Klipr fecha normalmente.
+- Se um crash ou encerramento forçado deixar um preview para trás, o Klipr remove os arquivos residuais reconhecidos na próxima inicialização.
+
+Toda a preparação e limpeza do preview acontece localmente. Os previews temporários não são enviados ou compartilhados pelo aplicativo.
 
 ## Encoding por GPU
 
@@ -73,7 +88,9 @@ Para plataformas com limite rígido de upload, comece usando um target aproximad
 - Mantém o acesso ao sistema de arquivos no processo main do Electron.
 - Usa preload bridge em vez de expor APIs Node.js ao renderer.
 - Valida arquivos selecionados e recebidos por drag and drop antes do processamento.
-- Faz streaming de previews autorizados por meio de um protocolo customizado `video://`.
+- Disponibiliza somente previews registrados por meio de um protocolo customizado e autorizado `video://`.
+- Detecta arquivos MP4 com metadados de navegação no final e prepara previews `faststart` descartáveis sem recodificação.
+- Mantém separado o caminho descartável do preview e o arquivo original usado nas operações de trim e compressão.
 - Rastreia processos FFmpeg ativos para permitir cancelamento e limpeza ao fechar o app.
 - Gera um instalador Windows x64 com Electron Builder.
 

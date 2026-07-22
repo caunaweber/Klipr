@@ -22,6 +22,8 @@ The app is designed for quick everyday use, but the project also explores deskto
 - Added output frame-rate control with Native, 30 FPS, 60 FPS, and 120 FPS options.
 - Added Windows **Open with Klipr** integration for supported video files.
 - Added clear GPU encoding error handling through the standard app notification.
+- Added a synchronized playhead to the trim timeline. Clicking the selected range now seeks the preview without moving its start or end handles.
+- Improved preview stability during seeks with optimized temporary MP4 previews when needed.
 - Simplified compression to a single-pass workflow.
 - Updated FFprobe to 6.1.1 and reduced unnecessary files in the Windows installer.
 
@@ -41,7 +43,8 @@ The app is designed for quick everyday use, but the project also explores deskto
 
 - Select local videos through the file picker, drag and drop, or **Open with Klipr** on Windows.
 - Preview the selected video inside the app.
-- Trim clips by choosing start and end points.
+- Follow playback with a synchronized playhead and seek directly from the trim timeline.
+- Trim clips by dragging their start and end handles independently from the preview position.
 - Export a selected clip without compression.
 - Set a target output size in MB.
 - Encode AVC/H.264 or HEVC/H.265 using the CPU.
@@ -51,6 +54,18 @@ The app is designed for quick everyday use, but the project also explores deskto
 - Open the output folder after export finishes.
 - Supports MP4, MKV, MOV, WebM, and AVI input files.
 - Exports compressed videos and trimmed clips as MP4.
+
+## Temporary Video Previews
+
+Some valid MP4 files store their navigation metadata at the end of the file, which can make repeated seeks unstable in Chromium. When Klipr detects this structure, it uses FFmpeg to create an optimized preview in the operating system's temporary directory.
+
+- The preview is remuxed with `faststart`; video and audio are copied without re-encoding or quality loss.
+- The source video is never modified and remains the input for trimming and compression.
+- MP4 files that are already optimized, as well as other supported containers, are previewed directly without creating a temporary copy.
+- The temporary preview is removed when another video is selected or when Klipr closes normally.
+- If a crash or forced shutdown leaves a preview behind, Klipr removes recognized stale preview files the next time it starts.
+
+All preview preparation and cleanup happens locally. Temporary previews are not uploaded or shared by the app.
 
 ## GPU Encoding
 
@@ -72,7 +87,9 @@ For platforms with a strict upload limit, start with a target around 1 MB below 
 - Keeps file-system access in the Electron main process.
 - Uses a preload bridge instead of exposing Node.js APIs to the renderer.
 - Validates selected and dropped files before processing.
-- Streams authorized video previews through a custom `video://` protocol.
+- Serves only registered video previews through an authorized custom `video://` protocol.
+- Detects MP4 files with trailing navigation metadata and prepares disposable `faststart` previews without re-encoding.
+- Separates the disposable preview path from the original source used by trim and compression operations.
 - Tracks active FFmpeg processes to support cancellation and app shutdown cleanup.
 - Packages a Windows x64 installer with Electron Builder.
 
