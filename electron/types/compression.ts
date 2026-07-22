@@ -23,6 +23,7 @@ export interface CompressionRequest {
 export interface CompressionResult {
   outputId: string
   outputPath: string
+  outputSizeMB: number
 }
 
 export interface CompressionOptions {

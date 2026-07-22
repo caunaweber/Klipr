@@ -271,6 +271,11 @@ function App() {
                 <ExportResult
                   kind={exportKind}
                   onOpenFolder={openResultFolder}
+                  outputSizeMB={
+                    'outputSizeMB' in exportResult
+                      ? exportResult.outputSizeMB
+                      : undefined
+                  }
                 />
               )}
             </aside>
