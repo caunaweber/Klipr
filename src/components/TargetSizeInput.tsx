@@ -1,8 +1,10 @@
 import { Minus, Plus } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { cn } from '../lib/utils'
 import { Tooltip } from './Tooltip'
 
 interface TargetSizeInputProps {
+  action?: ReactNode
   sourceSizeMB?: number
   value: string
   onValueChange: (value: string) => void
@@ -12,6 +14,7 @@ const TARGET_SIZE_PRESETS = ['8', '10', '25', '50', '100']
 const INVALID_TARGET_SIZE_MESSAGE = 'Target size must be smaller than the original video.'
 
 export function TargetSizeInput({
+  action,
   sourceSizeMB,
   value,
   onValueChange,
@@ -42,7 +45,7 @@ export function TargetSizeInput({
     isInvalid && 'border-destructive focus:border-destructive focus:ring-1 focus:ring-destructive/30',
   )
   const input = (
-    <div className="relative">
+    <div className="relative w-full">
       <input
         id="target-size"
         className={inputClassName}
@@ -117,13 +120,21 @@ export function TargetSizeInput({
           )
         })}
       </div>
-      {isInvalid ? (
-        <Tooltip content={INVALID_TARGET_SIZE_MESSAGE} tone="error">
-          {input}
-        </Tooltip>
-      ) : (
-        input
-      )}
+      <div
+        className={cn(
+          'grid gap-3',
+          action && 'sm:grid-cols-2 lg:grid-cols-1',
+        )}
+      >
+        {isInvalid ? (
+          <Tooltip content={INVALID_TARGET_SIZE_MESSAGE} tone="error">
+            {input}
+          </Tooltip>
+        ) : (
+          input
+        )}
+        {action}
+      </div>
     </div>
   )
 }

@@ -138,7 +138,7 @@ function App() {
         tone={messageTone}
       />
       <main className="app-scrollbar box-border h-[calc(100vh-2.25rem)] overflow-x-hidden overflow-y-auto bg-[radial-gradient(circle_at_top_left,rgba(79,70,229,0.24),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(88,28,135,0.22),transparent_34%),linear-gradient(135deg,#020204_0%,#070611_46%,#030207_100%)] px-4 py-3 text-foreground lg:overflow-hidden sm:px-5 lg:px-6">
-      <div className="mx-auto flex min-h-full w-full max-w-6xl flex-col gap-3 lg:h-full lg:overflow-hidden">
+      <div className="mx-auto flex min-h-full w-full max-w-[108rem] flex-col gap-3 lg:h-full lg:overflow-hidden">
         <section
           className={
             videoInfo
@@ -220,44 +220,45 @@ function App() {
                 </div>
 
                 <div className="flex flex-col gap-3">
-                  <EncoderSelect
-                    disabled={isVideoOperationActive}
-                    encoders={availableEncoders}
-                    isLoading={isLoadingEncoders}
-                    onEncoderChange={setSelectedEncoderId}
-                    selectedEncoderId={selectedEncoderId}
-                  />
-                  <FpsSelect
-                    fps={fps}
-                    sourceFps={videoInfo.fps}
-                    onFpsChange={setFps}
-                  />
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+                    <EncoderSelect
+                      disabled={isVideoOperationActive}
+                      encoders={availableEncoders}
+                      isLoading={isLoadingEncoders}
+                      onEncoderChange={setSelectedEncoderId}
+                      selectedEncoderId={selectedEncoderId}
+                    />
+                    <FpsSelect
+                      fps={fps}
+                      sourceFps={videoInfo.fps}
+                      onFpsChange={setFps}
+                    />
+                  </div>
                   <TargetSizeInput
+                    action={(
+                      <Button
+                        className={cn(
+                          'compress-action-button group w-full overflow-hidden',
+                          isCompressing
+                            ? 'border-primary/50 bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
+                            : 'bg-[linear-gradient(135deg,hsl(var(--primary))_0%,#7c3aed_52%,#2563eb_100%)] shadow-glow hover:shadow-[0_0_42px_rgb(124_58_237_/_0.34)]',
+                        )}
+                        disabled={isCompressDisabled || isCancelling}
+                        onClick={handleCompressButtonClick}
+                        variant={isCompressing ? 'outline' : 'default'}
+                      >
+                        {isCompressing ? <Square /> : <Play />}
+                        {isCompressing
+                          ? isCancelling
+                            ? 'Cancelling...'
+                            : 'Cancel'
+                          : 'Compress'}
+                      </Button>
+                    )}
                     sourceSizeMB={videoInfo.sizeMB}
                     value={targetSizeMB}
                     onValueChange={setTargetSizeMB}
                   />
-
-                  <div>
-                    <Button
-                      className={cn(
-                        'compress-action-button group w-full overflow-hidden',
-                        isCompressing
-                          ? 'border-primary/50 bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
-                          : 'bg-[linear-gradient(135deg,hsl(var(--primary))_0%,#7c3aed_52%,#2563eb_100%)] shadow-glow hover:shadow-[0_0_42px_rgb(124_58_237_/_0.34)]',
-                      )}
-                      disabled={isCompressDisabled || isCancelling}
-                      onClick={handleCompressButtonClick}
-                      variant={isCompressing ? 'outline' : 'default'}
-                    >
-                      {isCompressing ? <Square /> : <Play />}
-                      {isCompressing
-                        ? isCancelling
-                          ? 'Cancelling...'
-                          : 'Cancel'
-                        : 'Compress'}
-                    </Button>
-                  </div>
 
                   <ExportProgress
                     isComplete={hasCompressionResult}
