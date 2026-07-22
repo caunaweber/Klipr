@@ -171,8 +171,10 @@ function App() {
                 onClipEndChange={setClipEnd}
                 onClipStartChange={setClipStart}
                 onClearVideo={handleClearVideo}
+                onPause={player.pause}
                 onPreviewError={showPreviewError}
                 onResetTrim={resetTrim}
+                onSeek={player.seek}
                 onTrim={handleTrimButtonClick}
                 onToggleMute={player.toggleMute}
                 onTogglePlayback={player.togglePlayback}

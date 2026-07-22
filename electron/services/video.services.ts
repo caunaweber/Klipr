@@ -15,6 +15,7 @@ import { TrimRequest, TrimResult } from '../types/trim'
 import { validateTrimParameters } from '../utils/trim-validation.utils'
 import { trimVideo } from './trim/trim.services'
 import { resolveCompressionEncoder } from './encoder/encoder-selection.services'
+import { prepareVideoPreview } from './preview.services'
 
 const execFileAsync = promisify(execFile)
 
@@ -99,7 +100,8 @@ export async function selectVideo(): Promise<VideoInfo | null> {
   const filePath = fs.realpathSync(result.filePaths[0])
   assertSupportedVideoExtension(filePath)
 
-  const id = registerSelectedVideo(filePath)
+  const previewPath = await prepareVideoPreview(filePath)
+  const id = registerSelectedVideo(filePath, previewPath)
 
   return getVideoInfo(filePath, id)
 }
@@ -114,7 +116,8 @@ export async function selectLocalVideoPath(
 ): Promise<VideoInfo> {
   const resolvedPath = resolveLocalVideoPath(filePath, sourceLabel)
 
-  const id = registerSelectedVideo(resolvedPath)
+  const previewPath = await prepareVideoPreview(resolvedPath)
+  const id = registerSelectedVideo(resolvedPath, previewPath)
 
   return getVideoInfo(resolvedPath, id)
 }

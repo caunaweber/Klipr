@@ -20,8 +20,10 @@ interface VideoPreviewProps {
   onClipEndChange: (clipEnd: number) => void
   onClipStartChange: (clipStart: number) => void
   onClearVideo: () => void
+  onPause: () => void
   onPreviewError: () => void
   onResetTrim: () => void
+  onSeek: (time: number) => void
   onTrim: () => void
   onToggleMute: () => void
   onTogglePlayback: () => void
@@ -44,8 +46,10 @@ export function VideoPreview({
   onClipEndChange,
   onClipStartChange,
   onClearVideo,
+  onPause,
   onPreviewError,
   onResetTrim,
+  onSeek,
   onTrim,
   onToggleMute,
   onTogglePlayback,
@@ -133,11 +137,12 @@ export function VideoPreview({
         duration={videoInfo.duration}
         onClipEndChange={onClipEndChange}
         onClipStartChange={onClipStartChange}
+        onPause={onPause}
         onResetTrim={onResetTrim}
+        onSeek={onSeek}
         onTrim={onTrim}
         isTrimDisabled={isTrimDisabled}
         isTrimming={isTrimming}
-        videoRef={videoRef}
       />
     </section>
   )

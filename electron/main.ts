@@ -5,11 +5,11 @@ import { selectVideo, selectDroppedVideo, selectLocalVideoPath, compressVideo, t
 import { CompressionRequest } from './types/compression'
 import { TrimRequest } from './types/trim'
 import { protocol } from 'electron'
-import fs from 'node:fs'
 import { terminateAllFfmpegProcesses } from './utils/process-registry.utils'
-import { getSelectedVideoPath } from './utils/selected-video-registry.utils'
+import { clearSelectedVideos, getSelectedVideoPreviewPath } from './utils/selected-video-registry.utils'
 import { getGeneratedOutputPath } from './utils/generated-output-registry.utils'
 import { getEncoderCapabilities } from './services/encoder/encoder-capabilities.services'
+import { clearStaleVideoPreviews } from './services/preview.services'
 
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -39,158 +39,6 @@ let isVideoOperationActive = false
 let pendingVideoOpenPath: string | null = null
 
 const SUPPORTED_OPEN_WITH_EXTENSIONS = new Set(['.mp4', '.mkv', '.mov', '.webm', '.avi'])
-
-interface ParsedRange {
-  start: number
-  end: number
-}
-
-function createVideoStreamBody(
-  filePath: string,
-  options?: {
-    start: number
-    end: number
-  }
-): ReadableStream<Uint8Array> {
-  const fileStream =
-    fs.createReadStream(
-      filePath,
-      options
-    )
-
-  let controller:
-    | ReadableStreamDefaultController<Uint8Array>
-    | null = null
-  let isSettled = false
-
-  const cleanup = () => {
-    fileStream.off('data', handleData)
-    fileStream.off('end', handleEnd)
-    fileStream.off('error', handleError)
-  }
-
-  const settle = (
-    action: () => void
-  ) => {
-    if (isSettled) {
-      return
-    }
-
-    isSettled = true
-    cleanup()
-    action()
-  }
-
-  const handleData = (
-    chunk: string | Buffer
-  ) => {
-    if (
-      isSettled ||
-      !controller
-    ) {
-      return
-    }
-
-    try {
-      controller.enqueue(
-        typeof chunk === 'string'
-          ? Buffer.from(chunk)
-          : chunk
-      )
-    } catch {
-      settle(() => {
-        fileStream.destroy()
-      })
-    }
-  }
-
-  const handleEnd = () => {
-    settle(() => {
-      controller?.close()
-    })
-  }
-
-  const handleError = (
-    error: Error
-  ) => {
-    settle(() => {
-      controller?.error(error)
-    })
-  }
-
-  fileStream.on('data', handleData)
-  fileStream.once('end', handleEnd)
-  fileStream.once('error', handleError)
-
-  return new ReadableStream<Uint8Array>({
-    start(streamController) {
-      controller = streamController
-    },
-    cancel() {
-      settle(() => {
-        fileStream.destroy()
-      })
-    },
-  })
-}
-
-function parseRangeHeader(
-  range: string,
-  fileSize: number
-): ParsedRange | null {
-  const match = range.match(/^bytes=(\d+)-(\d*)$/)
-
-  if (!match) {
-    return null
-  }
-
-  const start = Number(match[1])
-  const end = match[2]
-    ? Number(match[2])
-    : fileSize - 1
-
-  if (
-    !Number.isSafeInteger(start) ||
-    !Number.isSafeInteger(end) ||
-    start < 0 ||
-    end < start ||
-    start >= fileSize ||
-    end >= fileSize
-  ) {
-    return null
-  }
-
-  return {
-    start,
-    end
-  }
-}
-
-function getVideoContentType(filePath: string) {
-  const extension = path.extname(filePath).toLowerCase()
-
-  if (extension === '.mp4') {
-    return 'video/mp4'
-  }
-
-  if (extension === '.mkv') {
-    return 'video/x-matroska'
-  }
-
-  if (extension === '.avi') {
-    return 'video/x-msvideo'
-  }
-
-  if (extension === '.mov') {
-    return 'video/quicktime'
-  }
-
-  if (extension === '.webm') {
-    return 'video/webm'
-  }
-
-  return 'application/octet-stream'
-}
 
 function getVideoPathFromArgv(argv: string[]) {
   for (const argument of argv) {
@@ -388,6 +236,7 @@ app.on('before-quit', (event) => {
 
   void (async () => {
     await terminateAllFfmpegProcesses()
+    await clearSelectedVideos()
     app.quit()
   })()
 })
@@ -533,111 +382,26 @@ if (process.platform === 'win32') {
 }
 
 if (hasSingleInstanceLock) {
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
 
-    protocol.handle(
+    await clearStaleVideoPreviews()
+
+    protocol.registerFileProtocol(
       'video',
-      async (request) => {
+      (request, callback) => {
 
         try {
 
-          const videoId =
-            getVideoIdFromRequestUrl(
-              request.url
-            )
+          const videoId = getVideoIdFromRequestUrl(request.url)
 
-          const filePath =
-            getSelectedVideoPath(videoId)
+          const filePath = getSelectedVideoPreviewPath(videoId)
 
           if (!filePath) {
-            return new Response(
-              'Video not authorized',
-              {
-                status: 403
-              }
-            )
+            callback({ error: -10 })
+            return
           }
 
-          const stat =
-            await fs.promises.stat(
-              filePath
-            )
-
-          const range =
-            request.headers.get(
-              'range'
-            )
-
-          const contentType =
-            getVideoContentType(filePath)
-
-          if (!range) {
-
-            const stream =
-              createVideoStreamBody(
-                filePath
-              )
-
-            return new Response(
-              stream,
-              {
-                headers: {
-                  'Content-Type':
-                    contentType,
-                  'Content-Length':
-                    String(stat.size),
-                  'Accept-Ranges':
-                    'bytes'
-                }
-              }
-            )
-          }
-
-          const parsedRange =
-            parseRangeHeader(
-              range,
-              stat.size
-            )
-
-          if (!parsedRange) {
-            return new Response(
-              'Invalid range',
-              {
-                status: 416
-              }
-            )
-          }
-
-          const { start, end } = parsedRange
-
-          const chunkSize =
-            end - start + 1
-
-          const stream =
-            createVideoStreamBody(
-              filePath,
-              {
-                start,
-                end
-              }
-            )
-
-          return new Response(
-            stream,
-            {
-              status: 206,
-              headers: {
-                'Content-Type':
-                  contentType,
-                'Content-Length':
-                  String(chunkSize),
-                'Content-Range':
-                  `bytes ${start}-${end}/${stat.size}`,
-                'Accept-Ranges':
-                  'bytes'
-              }
-            }
-          )
+          callback({ path: filePath })
 
         } catch (error) {
 
@@ -646,12 +410,7 @@ if (hasSingleInstanceLock) {
             error
           )
 
-          return new Response(
-            'File not found',
-            {
-              status: 404
-            }
-          )
+          callback({ error: -6 })
         }
       }
     )

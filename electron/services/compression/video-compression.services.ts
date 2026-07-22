@@ -86,6 +86,9 @@ export async function compressVideoFile(options: CompressionOptions): Promise<st
                 '-vf',
                 videoFilter,
 
+                '-movflags',
+                '+faststart',
+
                 '-progress',
                 'pipe:1',
 

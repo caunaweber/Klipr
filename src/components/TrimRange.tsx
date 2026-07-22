@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type RefObject } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { Loader2, RotateCcw, Scissors } from 'lucide-react'
 import { Range } from 'react-range'
 import { formatDuration } from '../utils/formatDuration'
@@ -14,9 +14,10 @@ interface TrimRangeProps {
   isTrimming: boolean
   onClipEndChange: (clipEnd: number) => void
   onClipStartChange: (clipStart: number) => void
+  onPause: () => void
   onResetTrim: () => void
+  onSeek: (time: number) => void
   onTrim: () => void
-  videoRef: RefObject<HTMLVideoElement>
 }
 
 export function TrimRange({
@@ -28,9 +29,10 @@ export function TrimRange({
   isTrimming,
   onClipEndChange,
   onClipStartChange,
+  onPause,
   onResetTrim,
+  onSeek,
   onTrim,
-  videoRef,
 }: TrimRangeProps) {
   const [activeThumb, setActiveThumb] = useState(0)
   const [isResetAnimating, setIsResetAnimating] = useState(false)
@@ -61,6 +63,26 @@ export function TrimRange({
     })
     onResetTrim()
   }
+  const seekFromTrackPosition = (
+    clientX: number,
+    track: HTMLDivElement,
+  ) => {
+    const trackBounds = track.getBoundingClientRect()
+
+    if (duration <= 0 || trackBounds.width <= 0) {
+      return
+    }
+
+    const positionRatio = Math.min(
+      Math.max((clientX - trackBounds.left) / trackBounds.width, 0),
+      1,
+    )
+    const clickedTime = positionRatio * duration
+
+    onSeek(Math.min(Math.max(clickedTime, clipStart), clipEnd))
+  }
+  const isThumbInteraction = (target: EventTarget | null) =>
+    target instanceof Element && Boolean(target.closest('[role="slider"]'))
 
   return (
     <div className="trim-panel mt-1 px-3 pb-3 pt-2.5 sm:px-4">
@@ -146,17 +168,35 @@ export function TrimRange({
           onClipStartChange(start)
           onClipEndChange(end)
 
-          if (!videoRef.current) {
-            return
-          }
-
-          videoRef.current.currentTime = activeThumb === 0 ? start : end
+          onSeek(activeThumb === 0 ? start : end)
         }}
         renderTrack={({ props, children }) => (
           <div
             {...props}
             style={{ ...props.style, ...trackStyle }}
             className="trim-track"
+            onMouseDown={(event) => {
+              if (event.button !== 0 || isThumbInteraction(event.target)) {
+                return
+              }
+
+              event.preventDefault()
+              seekFromTrackPosition(event.clientX, event.currentTarget)
+            }}
+            onTouchStart={(event) => {
+              if (isThumbInteraction(event.target)) {
+                return
+              }
+
+              const touch = event.touches[0]
+
+              if (!touch) {
+                return
+              }
+
+              event.preventDefault()
+              seekFromTrackPosition(touch.clientX, event.currentTarget)
+            }}
           >
             <span
               aria-hidden="true"
@@ -180,7 +220,18 @@ export function TrimRange({
           return (
             <div
               {...props}
-              onMouseDown={() => setActiveThumb(index)}
+              onKeyDown={(event) => {
+                onPause()
+                props.onKeyDown(event)
+              }}
+              onMouseDown={() => {
+                onPause()
+                setActiveThumb(index)
+              }}
+              onTouchStart={() => {
+                onPause()
+                setActiveThumb(index)
+              }}
               className={`trim-thumb group/trim-thumb ${
                 index === 0 ? 'trim-thumb-start' : 'trim-thumb-end'
               }`}

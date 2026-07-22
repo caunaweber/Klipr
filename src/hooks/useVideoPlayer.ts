@@ -56,6 +56,12 @@ export function useVideoPlayer({
       if (!video) return
 
       const nextTime = Math.min(Math.max(time, clipStart), clipEnd)
+
+      if (Math.abs(video.currentTime - nextTime) < 0.001) {
+        setCurrentTime(nextTime)
+        return
+      }
+
       video.currentTime = nextTime
       setCurrentTime(nextTime)
     },

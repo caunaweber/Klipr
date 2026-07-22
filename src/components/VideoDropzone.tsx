@@ -85,7 +85,9 @@ export function VideoDropzone({
         {isLoading ? 'Loading video...' : 'Select a video'}
       </h2>
       <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">
-        Drag a video here or click to choose a local file.
+        {isLoading
+          ? 'Preparing preview...'
+          : 'Drag a video here or click to choose a local file.'}
       </p>
 
       {error && (
