@@ -100,10 +100,7 @@ export async function selectVideo(): Promise<VideoInfo | null> {
   const filePath = fs.realpathSync(result.filePaths[0])
   assertSupportedVideoExtension(filePath)
 
-  const previewPath = await prepareVideoPreview(filePath)
-  const id = registerSelectedVideo(filePath, previewPath)
-
-  return getVideoInfo(filePath, id)
+  return prepareSelectedVideo(filePath)
 }
 
 export async function selectDroppedVideo(filePath: unknown): Promise<VideoInfo> {
@@ -116,13 +113,12 @@ export async function selectLocalVideoPath(
 ): Promise<VideoInfo> {
   const resolvedPath = resolveLocalVideoPath(filePath, sourceLabel)
 
-  const previewPath = await prepareVideoPreview(resolvedPath)
-  const id = registerSelectedVideo(resolvedPath, previewPath)
-
-  return getVideoInfo(resolvedPath, id)
+  return prepareSelectedVideo(resolvedPath)
 }
 
-export async function getVideoInfo(filePath: string, id: string): Promise<VideoInfo> {
+type ProbedVideoInfo = Omit<VideoInfo, 'id' | 'videoUrl'>
+
+async function probeVideoInfo(filePath: string): Promise<ProbedVideoInfo> {
   const stats = fs.statSync(filePath)
   const { stdout } = await execFileAsync(
     ffprobePath,
@@ -156,9 +152,7 @@ export async function getVideoInfo(filePath: string, id: string): Promise<VideoI
   ).length
 
   return {
-    id,
     fileName: path.basename(filePath),
-    videoUrl: `video://local/${id}`,
     sizeMB: Number((stats.size / (1024 * 1024)).toFixed(2)),
     duration: Number(data.format.duration),
     width: videoStream.width,
@@ -170,6 +164,32 @@ export async function getVideoInfo(filePath: string, id: string): Promise<VideoI
     codec: videoStream.codec_name,
     audioTracksCount
   }
+}
+
+function buildVideoInfo(
+  id: string,
+  probedVideoInfo: ProbedVideoInfo,
+): VideoInfo {
+  return {
+    id,
+    videoUrl: `video://local/${id}`,
+    ...probedVideoInfo,
+  }
+}
+
+async function prepareSelectedVideo(filePath: string): Promise<VideoInfo> {
+  const probedVideoInfo = await probeVideoInfo(filePath)
+  const previewPath = await prepareVideoPreview(
+    filePath,
+    probedVideoInfo.audioTracksCount,
+  )
+  const id = registerSelectedVideo(filePath, previewPath)
+
+  return buildVideoInfo(id, probedVideoInfo)
+}
+
+export async function getVideoInfo(filePath: string, id: string): Promise<VideoInfo> {
+  return buildVideoInfo(id, await probeVideoInfo(filePath))
 }
 
 function parseFrameRate(

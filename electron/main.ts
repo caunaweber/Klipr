@@ -14,8 +14,6 @@ import { clearStaleVideoPreviews } from './services/preview.services'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-app.commandLine.appendSwitch('enable-blink-features', 'AudioVideoTracks')
-
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'video',
@@ -133,6 +131,9 @@ function createWindow() {
     icon: path.join(process.env.APP_ROOT, 'build/icon.ico'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
     },
   })
 

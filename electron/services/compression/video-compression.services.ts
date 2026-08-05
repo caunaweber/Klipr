@@ -9,6 +9,7 @@ import { createFfmpegCancelledError, registerFfmpegProcess } from '../../utils/p
 import { resolvePackagedBinaryPath } from '../../utils/binary-path.utils'
 import { buildEncoderArguments } from './encoder-arguments'
 import { createCompressionProcessError } from './compression-error'
+import { buildAudioMappingArguments } from '../../utils/audio-arguments.utils'
 
 const require = createRequire(import.meta.url)
 const ffmpeg = require('ffmpeg-static')
@@ -61,28 +62,11 @@ export async function compressVideoFile(options: CompressionOptions): Promise<st
         ? `scale=${resolution.width}:${resolution.height}`
         : `scale=${resolution.width}:${resolution.height},fps=${fps}`
 
-    const inputLinks = Array.from({ length: options.audioTracksCount }, (_, i) => `[0:a:${i}]`).join('')
-    const audioArgs = options.audioTracksCount > 1
-        ? [
-            '-filter_complex',
-            `${inputLinks}amerge=inputs=${options.audioTracksCount}[a]`,
-            '-map',
-            '0:v',
-            '-map',
-            '[a]',
-            '-c:a',
-            'aac',
-            '-ac',
-            '2'
-          ]
-        : [
-            '-map',
-            '0:v',
-            '-map',
-            '0:a?',
-            '-c:a',
-            'aac'
-          ]
+    const audioArgs = buildAudioMappingArguments({
+        audioTracksCount: options.audioTracksCount,
+        copyVideo: false,
+        singleTrackAudioCodec: 'aac'
+    })
 
     return new Promise((resolve, reject) => {
 

@@ -5,6 +5,7 @@ import { captureStderr } from '../../utils/ffmpeg.utils'
 import { buildTrimOutputPath, removeFileIfExistsBestEffort } from '../../utils/file.utils'
 import { createFfmpegCancelledError, registerFfmpegProcess } from '../../utils/process-registry.utils'
 import { resolvePackagedBinaryPath } from '../../utils/binary-path.utils'
+import { buildAudioMappingArguments } from '../../utils/audio-arguments.utils'
 
 const require = createRequire(import.meta.url)
 const ffmpeg = require('ffmpeg-static')
@@ -26,30 +27,11 @@ export async function trimVideo(options: TrimOptions): Promise<string> {
 
     const outputPath = buildTrimOutputPath(filePath, startTime, endTime)
 
-    const inputLinks = Array.from({ length: options.audioTracksCount }, (_, i) => `[0:a:${i}]`).join('')
-    const audioArgs = options.audioTracksCount > 1
-        ? [
-            '-filter_complex',
-            `${inputLinks}amerge=inputs=${options.audioTracksCount}[a]`,
-            '-map',
-            '0:v',
-            '-map',
-            '[a]',
-            '-c:v',
-            'copy',
-            '-c:a',
-            'aac',
-            '-ac',
-            '2'
-          ]
-        : [
-            '-map',
-            '0:v',
-            '-map',
-            '0:a?',
-            '-c',
-            'copy'
-          ]
+    const audioArgs = buildAudioMappingArguments({
+        audioTracksCount: options.audioTracksCount,
+        copyVideo: true,
+        singleTrackAudioCodec: 'copy',
+    })
 
     return new Promise((resolve, reject) => {
 

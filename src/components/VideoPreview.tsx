@@ -116,14 +116,6 @@ export function VideoPreview({
           ref={videoRef}
           src={videoInfo.videoUrl}
           onError={onPreviewError}
-          onLoadedMetadata={() => {
-            const video = videoRef.current as any
-            if (video && video.audioTracks) {
-              for (let i = 0; i < video.audioTracks.length; i++) {
-                video.audioTracks[i].enabled = true
-              }
-            }
-          }}
         />
         <div className="pointer-events-none absolute inset-x-3 bottom-3 z-20 opacity-100 sm:inset-x-4 sm:bottom-4">
           <PlayerControls
