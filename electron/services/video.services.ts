@@ -151,6 +151,10 @@ export async function getVideoInfo(filePath: string, id: string): Promise<VideoI
     throw new Error('Selected file does not contain valid video metadata')
   }
 
+  const audioTracksCount = data.streams.filter(
+    (stream) => stream.codec_type === 'audio'
+  ).length
+
   return {
     id,
     fileName: path.basename(filePath),
@@ -163,7 +167,8 @@ export async function getVideoInfo(filePath: string, id: string): Promise<VideoI
       videoStream.avg_frame_rate ||
       videoStream.r_frame_rate
     ),
-    codec: videoStream.codec_name
+    codec: videoStream.codec_name,
+    audioTracksCount
   }
 }
 
@@ -232,6 +237,7 @@ export async function compressVideo(
     onProgress,
     startTime: resolvedStartTime,
     endTime: resolvedEndTime,
+    audioTracksCount: videoInfo.audioTracksCount
   })
   const outputSizeMB = Number((fs.statSync(outputPath).size / (1024 * 1024)).toFixed(2))
 
@@ -263,6 +269,7 @@ export async function trimSelectedVideo(
     filePath,
     startTime: request.startTime,
     endTime: request.endTime,
+    audioTracksCount: videoInfo.audioTracksCount
   })
 
   return {

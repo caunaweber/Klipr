@@ -61,6 +61,29 @@ export async function compressVideoFile(options: CompressionOptions): Promise<st
         ? `scale=${resolution.width}:${resolution.height}`
         : `scale=${resolution.width}:${resolution.height},fps=${fps}`
 
+    const inputLinks = Array.from({ length: options.audioTracksCount }, (_, i) => `[0:a:${i}]`).join('')
+    const audioArgs = options.audioTracksCount > 1
+        ? [
+            '-filter_complex',
+            `${inputLinks}amerge=inputs=${options.audioTracksCount}[a]`,
+            '-map',
+            '0:v',
+            '-map',
+            '[a]',
+            '-c:a',
+            'aac',
+            '-ac',
+            '2'
+          ]
+        : [
+            '-map',
+            '0:v',
+            '-map',
+            '0:a?',
+            '-c:a',
+            'aac'
+          ]
+
     return new Promise((resolve, reject) => {
 
         const ffmpegProcess = spawn(
@@ -77,8 +100,7 @@ export async function compressVideoFile(options: CompressionOptions): Promise<st
 
                 ...encoderArgs,
 
-                '-c:a',
-                'aac',
+                ...audioArgs,
 
                 '-b:a',
                 `${audioBitrateKbps}k`,

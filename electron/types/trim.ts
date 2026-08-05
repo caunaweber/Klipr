@@ -8,6 +8,7 @@ export interface TrimOptions {
   filePath: string
   startTime: number
   endTime: number
+  audioTracksCount: number
 }
 
 export interface TrimResult {

@@ -14,6 +14,8 @@ import { clearStaleVideoPreviews } from './services/preview.services'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
+app.commandLine.appendSwitch('enable-blink-features', 'AudioVideoTracks')
+
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'video',
