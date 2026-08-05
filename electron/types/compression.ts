@@ -39,6 +39,7 @@ export interface CompressionOptions {
 
   encoder: EncoderDefinition
   fps: CompressionFps
+  audioTracksCount: number
 
   onProgress: (progress: number) => void
 }

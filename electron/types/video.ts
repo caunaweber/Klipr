@@ -8,6 +8,7 @@ export interface VideoInfo {
   height: number
   fps: number
   codec: string
+  audioTracksCount: number
 }
 
 export type OpenedVideoPayload =

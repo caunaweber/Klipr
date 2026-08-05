@@ -9,6 +9,7 @@ import { createFfmpegCancelledError, registerFfmpegProcess } from '../../utils/p
 import { resolvePackagedBinaryPath } from '../../utils/binary-path.utils'
 import { buildEncoderArguments } from './encoder-arguments'
 import { createCompressionProcessError } from './compression-error'
+import { buildAudioMappingArguments } from '../../utils/audio-arguments.utils'
 
 const require = createRequire(import.meta.url)
 const ffmpeg = require('ffmpeg-static')
@@ -61,6 +62,12 @@ export async function compressVideoFile(options: CompressionOptions): Promise<st
         ? `scale=${resolution.width}:${resolution.height}`
         : `scale=${resolution.width}:${resolution.height},fps=${fps}`
 
+    const audioArgs = buildAudioMappingArguments({
+        audioTracksCount: options.audioTracksCount,
+        copyVideo: false,
+        singleTrackAudioCodec: 'aac'
+    })
+
     return new Promise((resolve, reject) => {
 
         const ffmpegProcess = spawn(
@@ -77,8 +84,7 @@ export async function compressVideoFile(options: CompressionOptions): Promise<st
 
                 ...encoderArgs,
 
-                '-c:a',
-                'aac',
+                ...audioArgs,
 
                 '-b:a',
                 `${audioBitrateKbps}k`,

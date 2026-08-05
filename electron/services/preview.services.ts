@@ -6,6 +6,7 @@ import path from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { resolvePackagedBinaryPath } from '../utils/binary-path.utils'
+import { buildAudioMappingArguments } from '../utils/audio-arguments.utils'
 
 const execFileAsync = promisify(execFile)
 const require = createRequire(import.meta.url)
@@ -97,11 +98,37 @@ async function hasTrailingMoovAtom(filePath: string) {
   }
 }
 
-export async function prepareVideoPreview(filePath: string) {
-  if (
-    path.extname(filePath).toLowerCase() !== '.mp4' ||
-    !(await hasTrailingMoovAtom(filePath))
-  ) {
+export function buildPreviewArguments(
+  filePath: string,
+  previewPath: string,
+  audioTracksCount: number,
+) {
+  return [
+    '-v',
+    'error',
+    '-y',
+    '-i',
+    filePath,
+    ...buildAudioMappingArguments({
+      audioTracksCount,
+      copyVideo: true,
+      singleTrackAudioCodec: 'copy',
+    }),
+    '-movflags',
+    '+faststart',
+    '-avoid_negative_ts',
+    'make_zero',
+    previewPath,
+  ]
+}
+
+export async function prepareVideoPreview( filePath: string, audioTracksCount: number ) {
+  const needsMixedAudio = audioTracksCount > 1
+  const needsFastStart =
+    path.extname(filePath).toLowerCase() === '.mp4' &&
+    await hasTrailingMoovAtom(filePath)
+
+  if (!needsMixedAudio && !needsFastStart) {
     return filePath
   }
 
@@ -113,24 +140,7 @@ export async function prepareVideoPreview(filePath: string) {
   try {
     await execFileAsync(
       ffmpegPath,
-      [
-        '-v',
-        'error',
-        '-y',
-        '-i',
-        filePath,
-        '-map',
-        '0:v:0',
-        '-map',
-        '0:a?',
-        '-c',
-        'copy',
-        '-movflags',
-        '+faststart',
-        '-avoid_negative_ts',
-        'make_zero',
-        previewPath,
-      ],
+      buildPreviewArguments(filePath, previewPath, audioTracksCount),
     )
 
     return previewPath

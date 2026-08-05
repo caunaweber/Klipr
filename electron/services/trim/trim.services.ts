@@ -5,6 +5,7 @@ import { captureStderr } from '../../utils/ffmpeg.utils'
 import { buildTrimOutputPath, removeFileIfExistsBestEffort } from '../../utils/file.utils'
 import { createFfmpegCancelledError, registerFfmpegProcess } from '../../utils/process-registry.utils'
 import { resolvePackagedBinaryPath } from '../../utils/binary-path.utils'
+import { buildAudioMappingArguments } from '../../utils/audio-arguments.utils'
 
 const require = createRequire(import.meta.url)
 const ffmpeg = require('ffmpeg-static')
@@ -26,6 +27,12 @@ export async function trimVideo(options: TrimOptions): Promise<string> {
 
     const outputPath = buildTrimOutputPath(filePath, startTime, endTime)
 
+    const audioArgs = buildAudioMappingArguments({
+        audioTracksCount: options.audioTracksCount,
+        copyVideo: true,
+        singleTrackAudioCodec: 'copy',
+    })
+
     return new Promise((resolve, reject) => {
 
         const ffmpegProcess = spawn(
@@ -42,8 +49,7 @@ export async function trimVideo(options: TrimOptions): Promise<string> {
                 '-t',
                 String(clipDuration),
 
-                '-c',
-                'copy',
+                ...audioArgs,
 
                 '-avoid_negative_ts',
                 'make_zero',
