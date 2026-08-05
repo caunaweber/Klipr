@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-This document applies to the Windows x64 distribution of Klipr 1.2.0.
+This document applies to the Windows x64 distribution of Klipr 1.2.1.
 
 Klipr uses FFmpeg and FFprobe as separate command-line programs for local
 video processing. The licenses listed below apply to those third-party
@@ -51,10 +51,10 @@ Klipr also distributes the Node.js packages used to locate these programs:
 
 ## Corresponding source
 
-The corresponding source and build materials distributed for Klipr 1.2.0 are
+The corresponding source and build materials distributed for Klipr 1.2.1 are
 published with the release assets at:
 
-https://github.com/caunaweber/Klipr/releases/tag/v1.2.0
+https://github.com/caunaweber/Klipr/releases/tag/v1.2.1
 
 FFmpeg and FFprobe are provided without warranty, as described in the GNU
 General Public License.

@@ -14,6 +14,14 @@ Sharing clips is often blocked by file size limits. Klipr provides a direct work
 
 The app is designed for quick everyday use, but the project also explores desktop development concerns such as secure Electron IPC, local file handling, custom media preview, FFmpeg process management, and production packaging.
 
+## What's New in 1.2.1
+
+- Fixed preview, compression, and trim exports for videos with multiple audio tracks, such as separate desktop and microphone recordings from NVIDIA ShadowPlay.
+- Uses FFprobe to detect the number of audio tracks in the selected video.
+- Mixes multiple tracks into a single AAC stereo track for broad player and web compatibility.
+- Keeps the existing fast path for videos with zero or one audio track.
+- Strengthened Electron renderer isolation and updated transitive dependencies with security patches.
+
 ## What's New in 1.2.0
 
 - Added hardware video encoding with AMD AMF and NVIDIA NVENC.
@@ -45,7 +53,8 @@ The app is designed for quick everyday use, but the project also explores deskto
 - Preview the selected video inside the app.
 - Follow playback with a synchronized playhead and seek directly from the trim timeline.
 - Trim clips by dragging their start and end handles independently from the preview position.
-- Export a selected clip without compression.
+- Export a selected clip without re-encoding the video; multiple audio tracks are mixed when necessary.
+- Preserve all audible content from videos with multiple audio tracks by mixing it into one compatible stereo track.
 - Set a target output size in MB.
 - Encode AVC/H.264 or HEVC/H.265 using the CPU.
 - Use AMD AMF or NVIDIA NVENC when compatible hardware and drivers are detected.
@@ -57,11 +66,12 @@ The app is designed for quick everyday use, but the project also explores deskto
 
 ## Temporary Video Previews
 
-Some valid MP4 files store their navigation metadata at the end of the file, which can make repeated seeks unstable in Chromium. When Klipr detects this structure, it uses FFmpeg to create an optimized preview in the operating system's temporary directory.
+Some valid MP4 files store their navigation metadata at the end of the file, which can make repeated seeks unstable in Chromium. Videos with multiple audio tracks also need a compatible combined track for reliable playback. When either condition applies, Klipr uses FFmpeg to create an optimized preview in the operating system's temporary directory.
 
-- The preview is remuxed with `faststart`; video and audio are copied without re-encoding or quality loss.
+- For `faststart` optimization only, video and audio are copied without re-encoding or quality loss.
+- For multiple audio tracks, the video is copied without re-encoding while all audio tracks are mixed into one AAC stereo track.
 - The source video is never modified and remains the input for trimming and compression.
-- MP4 files that are already optimized, as well as other supported containers, are previewed directly without creating a temporary copy.
+- Files that do not need `faststart` optimization or audio mixing are previewed directly without creating a temporary copy.
 - The temporary preview is removed when another video is selected or when Klipr closes normally.
 - If a crash or forced shutdown leaves a preview behind, Klipr removes recognized stale preview files the next time it starts.
 
@@ -88,7 +98,7 @@ For platforms with a strict upload limit, start with a target around 1 MB below 
 - Uses a preload bridge instead of exposing Node.js APIs to the renderer.
 - Validates selected and dropped files before processing.
 - Serves only registered video previews through an authorized custom `video://` protocol.
-- Detects MP4 files with trailing navigation metadata and prepares disposable `faststart` previews without re-encoding.
+- Prepares disposable previews for MP4 `faststart` optimization and for compatible playback of multiple audio tracks.
 - Separates the disposable preview path from the original source used by trim and compression operations.
 - Tracks active FFmpeg processes to support cancellation and app shutdown cleanup.
 - Packages a Windows x64 installer with Electron Builder.
@@ -99,10 +109,10 @@ Download the latest Windows installer from the Releases page:
 
 [Klipr releases](https://github.com/caunaweber/Klipr/releases/latest)
 
-For version 1.2.0, the installer file is:
+For version 1.2.1, the installer file is:
 
 ```text
-Klipr-Windows-1.2.0-Setup.exe
+Klipr-Windows-1.2.1-Setup.exe
 ```
 
 Run the setup file normally and launch Klipr after installation.

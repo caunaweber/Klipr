@@ -14,6 +14,14 @@ Compartilhar clipes muitas vezes esbarra em limites de tamanho de arquivo. O Kli
 
 O app foi pensado para uso rápido no dia a dia, mas o projeto também trabalha pontos importantes de desenvolvimento desktop, como IPC seguro no Electron, manipulação de arquivos locais, preview customizado de mídia, gerenciamento de processos FFmpeg e empacotamento para produção.
 
+## Novidades da Versão 1.2.1
+
+- Corrigidos o preview, a compressão e o trim de vídeos com múltiplas faixas de áudio, como gravações do NVIDIA ShadowPlay com desktop e microfone separados.
+- Uso do FFprobe para detectar a quantidade de faixas de áudio do vídeo selecionado.
+- Mixagem de múltiplas faixas em uma única faixa AAC estéreo, compatível com players comuns e serviços web.
+- Mantido o fluxo rápido existente para vídeos sem áudio ou com apenas uma faixa.
+- Reforçado o isolamento do renderer do Electron e atualizadas dependências transitivas com correções de segurança.
+
 ## Novidades da Versão 1.2.0
 
 - Adicionado encoding de vídeo por hardware com AMD AMF e NVIDIA NVENC.
@@ -45,7 +53,8 @@ O app foi pensado para uso rápido no dia a dia, mas o projeto também trabalha 
 - Preview do vídeo selecionado dentro do app.
 - Acompanhamento da reprodução por um playhead sincronizado e seek direto pela linha do tempo de trim.
 - Corte de clipes arrastando os marcadores de início e fim independentemente da posição do preview.
-- Exportação do trecho selecionado sem compressão.
+- Exportação do trecho selecionado sem recodificar o vídeo; múltiplas faixas de áudio são mixadas quando necessário.
+- Preservação de todo o conteúdo audível de vídeos com múltiplas faixas por meio da mixagem em uma faixa estéreo compatível.
 - Definição do tamanho final desejado em MB.
 - Encoding AVC/H.264 ou HEVC/H.265 usando a CPU.
 - Uso de AMD AMF ou NVIDIA NVENC quando hardware e drivers compatíveis são detectados.
@@ -57,11 +66,12 @@ O app foi pensado para uso rápido no dia a dia, mas o projeto também trabalha 
 
 ## Previews Temporários de Vídeo
 
-Alguns arquivos MP4 válidos armazenam seus metadados de navegação no final do arquivo, o que pode tornar seeks repetidos instáveis no Chromium. Quando o Klipr detecta essa estrutura, ele usa o FFmpeg para criar um preview otimizado no diretório temporário do sistema operacional.
+Alguns arquivos MP4 válidos armazenam seus metadados de navegação no final do arquivo, o que pode tornar seeks repetidos instáveis no Chromium. Vídeos com múltiplas faixas de áudio também precisam de uma faixa combinada compatível para reprodução confiável. Quando uma dessas condições é encontrada, o Klipr usa o FFmpeg para criar um preview otimizado no diretório temporário do sistema operacional.
 
-- O preview é remontado com `faststart`; vídeo e áudio são copiados sem recodificação ou perda de qualidade.
+- Quando somente a otimização `faststart` é necessária, vídeo e áudio são copiados sem recodificação ou perda de qualidade.
+- Quando existem múltiplas faixas, o vídeo é copiado sem recodificação e todos os áudios são mixados em uma faixa AAC estéreo.
 - O vídeo de origem nunca é alterado e continua sendo a entrada das operações de trim e compressão.
-- Arquivos MP4 que já estão otimizados, assim como os outros contêineres suportados, são reproduzidos diretamente sem criar uma cópia temporária.
+- Arquivos que não precisam de otimização `faststart` ou mixagem de áudio são reproduzidos diretamente sem criar uma cópia temporária.
 - O preview temporário é removido quando outro vídeo é selecionado ou quando o Klipr fecha normalmente.
 - Se um crash ou encerramento forçado deixar um preview para trás, o Klipr remove os arquivos residuais reconhecidos na próxima inicialização.
 
@@ -89,7 +99,7 @@ Para plataformas com limite rígido de upload, comece usando um target aproximad
 - Usa preload bridge em vez de expor APIs Node.js ao renderer.
 - Valida arquivos selecionados e recebidos por drag and drop antes do processamento.
 - Disponibiliza somente previews registrados por meio de um protocolo customizado e autorizado `video://`.
-- Detecta arquivos MP4 com metadados de navegação no final e prepara previews `faststart` descartáveis sem recodificação.
+- Prepara previews descartáveis para otimização `faststart` de MP4 e reprodução compatível de múltiplas faixas de áudio.
 - Mantém separado o caminho descartável do preview e o arquivo original usado nas operações de trim e compressão.
 - Rastreia processos FFmpeg ativos para permitir cancelamento e limpeza ao fechar o app.
 - Gera um instalador Windows x64 com Electron Builder.
@@ -100,10 +110,10 @@ Baixe o instalador Windows mais recente pela página de Releases:
 
 [Releases do Klipr](https://github.com/caunaweber/Klipr/releases/latest)
 
-Para a versão 1.2.0, o arquivo do instalador é:
+Para a versão 1.2.1, o arquivo do instalador é:
 
 ```text
-Klipr-Windows-1.2.0-Setup.exe
+Klipr-Windows-1.2.1-Setup.exe
 ```
 
 Execute o arquivo de setup normalmente e abra o Klipr após a instalação.
